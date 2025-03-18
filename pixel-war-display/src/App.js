@@ -26,6 +26,7 @@ function App() {
   const [isSigning, setSigning] = useState(false);
   const [selectedPixel, setSelectedPixel] = useState(null);
   const [selectedColor, setSelectedColor] = useState(null);
+  const [isLoaded, setLoaded] = useState(false);
 
   // Charger les données du canvas au démarrage
   const loadCanvas = async () => {
@@ -63,6 +64,7 @@ function App() {
         }
       }
     }
+    setLoaded(true);
     setCanvasData(newCanvas);
   };
 
@@ -188,40 +190,45 @@ function App() {
   };
 
   return (
-    <div className="App">
-      <h1>Pixel War Canvas</h1>
-      <div className="wallet-section">
-        {connected ? (
-          isSigning ? (
-            <p>Signature en cours...</p>
-          ) : isVerified ? (
-            <p>Connecté : {publicKey.toBase58()}</p>
-          ) : (
-            <p>Vérification de signature échouée. Veuillez réessayer la connexion.</p>
-          )
-        ) : (
-          <WalletMultiButton />
-        )}
-      </div>
-      <canvas
-        ref={canvasRef}
-        width={200}
-        height={200}
-        style={{ border: '1px solid black', width: '600px', height: '600px', imageRendering: 'pixelated' }}
-        onClick={handleCanvasClick}
-      />
-      <button onClick={() => loadCanvas()}>Recharger le Canvas</button>
-      {selectedPixel && isVerified && (
-        <div className="color-picker-container">
-          <ColorPicker
-            colors={COLORS}
-            onSelect={(color) => setSelectedColor(color)}
-            selectedColor={selectedColor}
-          />
-          <button onClick={handleDrawPixel}>Appliquer la couleur</button>
-        </div>
-      )}
-    </div>
+            <div className={"App"}>
+              <h1>Pixel War Canvas</h1>
+              <div className="wallet-section">
+                {connected ? (
+                    isSigning ? (
+                        <p>Signature en cours...</p>
+                    ) : isVerified ? (
+                        <p>Connecté : {publicKey.toBase58()}</p>
+                    ) : (
+                        <p>Vérification de signature échouée. Veuillez réessayer la connexion.</p>
+                    )
+                ) : (
+                    <WalletMultiButton/>
+                )}
+              </div>
+              <div className={!isLoaded ? "" : "hidden"}>
+                <h1>Loading....</h1>
+              </div>
+              <div className={isLoaded ? "" : "hidden"}>
+              <canvas
+                  ref={canvasRef}
+                  width={200}
+                  height={200}
+                  style={{border: '1px solid black', width: '600px', height: '600px', imageRendering: 'pixelated'}}
+                  onClick={handleCanvasClick}
+              />
+              <button onClick={() => loadCanvas()}>Recharger le Canvas</button>
+              {selectedPixel && isVerified && (
+                  <div className="color-picker-container">
+                    <ColorPicker
+                        colors={COLORS}
+                        onSelect={(color) => setSelectedColor(color)}
+                        selectedColor={selectedColor}
+                    />
+                    <button onClick={handleDrawPixel}>Appliquer la couleur</button>
+                  </div>
+              )}
+              </div>
+            </div>
   );
 }
 

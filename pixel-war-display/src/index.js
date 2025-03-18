@@ -7,6 +7,7 @@ import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react
 import { BackpackWalletAdapter } from '@solana/wallet-adapter-backpack'; // Importer directement depuis le package Backpack
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import { clusterApiUrl } from '@solana/web3.js';
+import '@solana/wallet-adapter-react-ui/styles.css';
 
 // Définir le réseau (par exemple, Devnet ou un réseau personnalisé)
 const network = WalletAdapterNetwork.Devnet;
