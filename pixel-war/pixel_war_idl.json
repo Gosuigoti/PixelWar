@@ -1,0 +1,443 @@
+{
+  "address": "FtcPZ5sAdSfE8K9suZ98xnhXBBgpnpHXGVu44wXzdtbL",
+  "metadata": {
+    "name": "pixel_war",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Created with Anchor"
+  },
+  "instructions": [
+    {
+      "name": "create_session",
+      "discriminator": [
+        242,
+        193,
+        143,
+        179,
+        150,
+        25,
+        122,
+        227
+      ],
+      "accounts": [
+        {
+          "name": "session",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              },
+              {
+                "kind": "account",
+                "path": "ephemeral_key"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "ephemeral_key"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "expiry",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "draw_pixels_direct",
+      "discriminator": [
+        180,
+        185,
+        58,
+        15,
+        109,
+        2,
+        112,
+        85
+      ],
+      "accounts": [
+        {
+          "name": "subsection",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "pixels",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "Pixel"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "draw_pixels_with_session",
+      "discriminator": [
+        166,
+        205,
+        148,
+        70,
+        189,
+        132,
+        154,
+        192
+      ],
+      "accounts": [
+        {
+          "name": "subsection",
+          "writable": true
+        },
+        {
+          "name": "authority"
+        },
+        {
+          "name": "session_token",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  101,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "authority"
+              },
+              {
+                "kind": "account",
+                "path": "ephemeral_signer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ephemeral_signer",
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "pixels",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "Pixel"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "initialize_canvas",
+      "discriminator": [
+        223,
+        91,
+        237,
+        137,
+        41,
+        27,
+        240,
+        59
+      ],
+      "accounts": [
+        {
+          "name": "canvas_meta",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  97,
+                  110,
+                  118,
+                  97,
+                  115,
+                  45,
+                  109,
+                  101,
+                  116,
+                  97
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "subsection",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  117,
+                  98,
+                  115,
+                  101,
+                  99,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "quadrant"
+              },
+              {
+                "kind": "arg",
+                "path": "x"
+              },
+              {
+                "kind": "arg",
+                "path": "y"
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "quadrant",
+          "type": "u8"
+        },
+        {
+          "name": "x",
+          "type": "u8"
+        },
+        {
+          "name": "y",
+          "type": "u8"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "CanvasMeta",
+      "discriminator": [
+        169,
+        19,
+        211,
+        185,
+        98,
+        34,
+        233,
+        75
+      ]
+    },
+    {
+      "name": "Session",
+      "discriminator": [
+        243,
+        81,
+        72,
+        115,
+        214,
+        188,
+        72,
+        144
+      ]
+    },
+    {
+      "name": "Subsection",
+      "discriminator": [
+        249,
+        217,
+        75,
+        167,
+        144,
+        13,
+        63,
+        118
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidPixelCoordinates",
+      "msg": "Pixel coordinates must be between 0 and 9"
+    },
+    {
+      "code": 6001,
+      "name": "AuthorityMustSign",
+      "msg": "Authority must sign if no session token is provided"
+    },
+    {
+      "code": 6002,
+      "name": "InvalidAuthority",
+      "msg": "Invalid authority in session token"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidEphemeralKey",
+      "msg": "Invalid ephemeral key in session token"
+    },
+    {
+      "code": 6004,
+      "name": "SessionExpired",
+      "msg": "Session has expired"
+    },
+    {
+      "code": 6005,
+      "name": "InvalidQuadrrant",
+      "msg": "Quadrrant must be between 0 and 3"
+    },
+    {
+      "code": 6006,
+      "name": "InvalidSubsectionCoordinates",
+      "msg": "Subsection coordinates must be between 0 and 9"
+    },
+    {
+      "code": 6007,
+      "name": "InvalidColor",
+      "msg": "Color must be between 0 and 15"
+    }
+  ],
+  "types": [
+    {
+      "name": "CanvasMeta",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "initialized",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Pixel",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "x",
+            "type": "u8"
+          },
+          {
+            "name": "y",
+            "type": "u8"
+          },
+          {
+            "name": "color",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Session",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "ephemeral_key",
+            "type": "pubkey"
+          },
+          {
+            "name": "expiry",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Subsection",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "quadrant",
+            "type": "u8"
+          },
+          {
+            "name": "x",
+            "type": "u8"
+          },
+          {
+            "name": "y",
+            "type": "u8"
+          },
+          {
+            "name": "pixels",
+            "type": {
+              "array": [
+                "u8",
+                50
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
