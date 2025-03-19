@@ -23,7 +23,7 @@ function App() {
   const [canvasData, setCanvasData] = useState(Array(200).fill().map(() => Array(200).fill(0)));
   const canvasRef = useRef(null);
   const [selectedColor, setSelectedColor] = useState(null);
-  const [isLoaded, setLoaded] = useState(true);
+  const [isLoaded, setLoaded] = useState(false);
   let mousePixel = null;
   let ctx = null;
 
