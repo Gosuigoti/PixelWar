@@ -22,11 +22,10 @@ function App() {
   const { connected, signMessage, publicKey, sendTransaction } = useWallet();
   const [canvasData, setCanvasData] = useState(Array(200).fill().map(() => Array(200).fill(0)));
   const canvasRef = useRef(null);
-  const [isVerified, setVerified] = useState(false);
-  const [isSigning, setSigning] = useState(false);
-  const [selectedPixel, setSelectedPixel] = useState(null);
   const [selectedColor, setSelectedColor] = useState(null);
-  const [isLoaded, setLoaded] = useState(false);
+  const [isLoaded, setLoaded] = useState(true);
+  let mousePixel = null;
+  let ctx = null;
 
   // Charger les données du canvas au démarrage
   const loadCanvas = async () => {
@@ -68,6 +67,30 @@ function App() {
     setCanvasData(newCanvas);
   };
 
+  const handleMouseMove = (e) => {
+    if (!selectedColor || !canvasRef.current) return;
+    if (!ctx) ctx = canvasRef.current.getContext('2d');
+
+    const rect = canvasRef.current.getBoundingClientRect();
+    const scaling_factor_x = rect.width / canvasRef.current.width;
+    const scaling_factor_y = rect.height / canvasRef.current.height;
+    const x = Math.floor((e.clientX - rect.left) / scaling_factor_x);
+    const y = Math.floor((e.clientY - rect.top) / scaling_factor_y);
+
+    if (mousePixel && (mousePixel.x !== x || mousePixel.y !== y)) {
+      if (mousePixel.x >= 0 && mousePixel.y >= 0 && mousePixel.x <= 200 && mousePixel.y <= 200) {
+        ctx.fillStyle = COLORS[canvasData[mousePixel.x][mousePixel.y]];
+        ctx.fillRect(mousePixel.x, mousePixel.y, 1, 1);
+      }
+    }
+
+    ctx.fillStyle = COLORS[selectedColor];
+    ctx.fillRect(x, y, 1, 1);
+
+    mousePixel = { x: x, y: y };
+  };
+
+
   useEffect(() => {
     loadCanvas();
   }, [connection]);
@@ -75,7 +98,9 @@ function App() {
   // Dessiner le canvas
   useEffect(() => {
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
+    if (ctx === null) {
+      ctx = canvas.getContext('2d');
+    }
     for (let x = 0; x < 200; x++) {
       for (let y = 0; y < 200; y++) {
         ctx.fillStyle = COLORS[canvasData[x][y]];
@@ -84,59 +109,15 @@ function App() {
     }
   }, [canvasData]);
 
-  // Vérification de signature lors de la connexion
-  useEffect(() => {
-    if (connected && !isVerified && publicKey) {
-      setSigning(true);
-      const message = "Confirmer la propriété de cette adresse.";
-      const encodedMessage = new TextEncoder().encode(message);
-
-      signMessage(encodedMessage)
-        .then((signature) => {
-          const isValid = nacl.sign.detached.verify(
-            encodedMessage,
-            signature,
-            publicKey.toBytes()
-          );
-          if (isValid) {
-            setVerified(true);
-            console.log("Signature vérifiée avec succès !");
-          } else {
-            setVerified(false);
-            console.log("Échec de la vérification de la signature.");
-          }
-          setSigning(false);
-        })
-        .catch((error) => {
-          setVerified(false);
-          setSigning(false);
-          console.error("Erreur lors de la signature :", error);
-        });
-    } else if (!connected) {
-      setVerified(false);
-      setSigning(false);
-    }
-  }, [connected, signMessage, publicKey, isVerified]);
-
-  // Gérer le clic sur le canvas
   const handleCanvasClick = (event) => {
-    if (!isVerified) return;
-    const rect = canvasRef.current.getBoundingClientRect();
-    const scaling_factor_x = rect.width / canvasRef.current.width;
-    const scaling_factor_y = rect.height / canvasRef.current.height;
-    const logical_x = Math.floor((event.clientX - rect.left) / scaling_factor_x);
-    const logical_y = Math.floor((event.clientY - rect.top) / scaling_factor_y);
-    if (logical_x >= 0 && logical_x < 200 && logical_y >= 0 && logical_y < 200) {
-      setSelectedPixel({ x: logical_x, y: logical_y });
-      setSelectedColor(canvasData[logical_x][logical_y]);
-    } else {
-      console.log("Click out of bounds");
-    }
+    //if (!isLoaded) return;
+    handleDrawPixel().finally();
   };
 
   // Envoyer la transaction pour modifier le pixel
   const handleDrawPixel = async () => {
-    if (!isVerified || !selectedPixel || selectedColor === null) return;
+    const selectedPixel = mousePixel;
+    if (!mousePixel) return;
 
     const quadrant = Math.floor(selectedPixel.x / 100) + Math.floor(selectedPixel.y / 100) * 2;
     const subX = Math.floor((selectedPixel.x % 100) / 10);
@@ -181,8 +162,6 @@ function App() {
       const newCanvas = [...canvasData];
       newCanvas[selectedPixel.x][selectedPixel.y] = selectedColor;
       setCanvasData(newCanvas);
-      setSelectedPixel(null);
-      setSelectedColor(null);
     } catch (error) {
       console.error('Erreur lors de la transaction :', error);
       alert('Erreur lors de la modification du pixel : ' + error.message);
@@ -193,40 +172,30 @@ function App() {
             <div className={"App"}>
               <h1>Pixel War Canvas</h1>
               <div className="wallet-section">
-                {connected ? (
-                    isSigning ? (
-                        <p>Signature en cours...</p>
-                    ) : isVerified ? (
-                        <p>Connecté : {publicKey.toBase58()}</p>
-                    ) : (
-                        <p>Vérification de signature échouée. Veuillez réessayer la connexion.</p>
-                    )
-                ) : (
-                    <WalletMultiButton/>
-                )}
+                <WalletMultiButton/>
               </div>
-              <div className={!isLoaded ? "" : "hidden"}>
+              <div style={{display: !isLoaded ? "block" : "none"}}>
                 <h1>Loading....</h1>
               </div>
               <div className={isLoaded ? "" : "hidden"}>
-              <canvas
-                  ref={canvasRef}
-                  width={200}
-                  height={200}
-                  style={{border: '1px solid black', width: '600px', height: '600px', imageRendering: 'pixelated'}}
-                  onClick={handleCanvasClick}
-              />
-              <button onClick={() => loadCanvas()}>Recharger le Canvas</button>
-              {selectedPixel && isVerified && (
+                <div className={"canvas-container"}>
                   <div className="color-picker-container">
-                    <ColorPicker
-                        colors={COLORS}
-                        onSelect={(color) => setSelectedColor(color)}
-                        selectedColor={selectedColor}
-                    />
-                    <button onClick={handleDrawPixel}>Appliquer la couleur</button>
-                  </div>
-              )}
+                          <ColorPicker
+                              colors={COLORS}
+                              onSelect={(color) => setSelectedColor(color)}
+                              selectedColor={selectedColor}
+                          />
+                    </div>
+                  <canvas
+                      onMouseMove={handleMouseMove}
+                      ref={canvasRef}
+                      width={200}
+                      height={200}
+                      className={"pixel-canvas"}
+                      style={{width: '600px', height: '600px', imageRendering: 'pixelated'}}
+                      onClick={handleCanvasClick}
+                  />
+                </div>
               </div>
             </div>
   );

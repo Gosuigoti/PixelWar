@@ -10,7 +10,6 @@ const ColorPicker = ({ colors, onSelect, selectedColor }) => {
             backgroundColor: color,
             width: '20px',
             height: '20px',
-            display: 'inline-block',
             margin: '5px',
             border: index === selectedColor ? '2px solid black' : '1px solid gray',
             cursor: 'pointer',
