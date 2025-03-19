@@ -64,4 +64,5 @@ button:hover {
 .pixel-canvas {
   box-shadow: 4px 4px 8px rgba(35, 35, 35, 0.3), 2px 3px 3px rgba(41, 41, 41, 0.8);
   border: 2mm ridge #0c161f;
+  cursor: none;
 }

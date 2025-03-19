@@ -41,7 +41,6 @@ function App() {
           try {
             const accountInfo = await connection.getAccountInfo(subsectionPda);
             if (accountInfo) {
-              console.log(`Loaded subsection (${q},${x},${y}) at ${subsectionPda.toBase58()}`);
               const data = accountInfo.data;
               const pixels = data.slice(11); // Skip quadrant, x, y (3 bytes)
               for (let i = 0; i < 10; i++) {
@@ -78,17 +77,35 @@ function App() {
     const y = Math.floor((e.clientY - rect.top) / scaling_factor_y);
 
     if (mousePixel && (mousePixel.x !== x || mousePixel.y !== y)) {
-      if (mousePixel.x >= 0 && mousePixel.y >= 0 && mousePixel.x <= 200 && mousePixel.y <= 200) {
+      if (mousePixel.x >= 0 && mousePixel.y >= 0 && mousePixel.x <= 199 && mousePixel.y <= 199) {
         ctx.fillStyle = COLORS[canvasData[mousePixel.x][mousePixel.y]];
         ctx.fillRect(mousePixel.x, mousePixel.y, 1, 1);
       }
     }
 
-    ctx.fillStyle = COLORS[selectedColor];
-    ctx.fillRect(x, y, 1, 1);
-
-    mousePixel = { x: x, y: y };
+    if (x >= 0 && y >= 0 && x <= 199 && y <= 199) {
+      ctx.fillStyle = COLORS[selectedColor];
+      ctx.fillRect(x, y, 1, 1);
+      mousePixel = {x: x, y: y};
+    } else {
+      if (mousePixel
+          && mousePixel.x >= 0
+          && mousePixel.y >= 0
+          && mousePixel.x <= 199
+          && mousePixel.y <= 199 ) {
+        let idx = canvasData[mousePixel.x][mousePixel.y]
+        if (idx < 15 && idx >= 0) {
+        ctx.fillStyle = COLORS[canvasData[mousePixel.x][mousePixel.y]];
+        ctx.fillRect(mousePixel.x, mousePixel.y, 1, 1);
+        }
+      }
+    }
   };
+
+  window.addEventListener('mousemove', (e) => {
+    handleMouseMove(e);
+  })
+
 
 
   useEffect(() => {
@@ -156,7 +173,6 @@ function App() {
     try {
       const signature = await sendTransaction(transaction, connection);
       await connection.confirmTransaction(signature, 'confirmed');
-      console.log('Transaction réussie :', signature);
 
       // Mettre à jour localement le canvas
       const newCanvas = [...canvasData];
@@ -164,7 +180,6 @@ function App() {
       setCanvasData(newCanvas);
     } catch (error) {
       console.error('Erreur lors de la transaction :', error);
-      alert('Erreur lors de la modification du pixel : ' + error.message);
     }
   };
 
@@ -187,7 +202,6 @@ function App() {
                           />
                     </div>
                   <canvas
-                      onMouseMove={handleMouseMove}
                       ref={canvasRef}
                       width={200}
                       height={200}
