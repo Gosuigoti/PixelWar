@@ -179,7 +179,7 @@ function App() {
       newCanvas[selectedPixel.x][selectedPixel.y] = selectedColor;
       setCanvasData(newCanvas);
     } catch (error) {
-      console.error('Erreur lors de la transaction :', error);
+      console.warn('Erreur lors de la transaction :', error);
     }
   };
 
