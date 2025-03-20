@@ -6,26 +6,18 @@
   justify-content: center;
   padding: 10px;
   overflow: hidden;
-}
-
-h1 {
+}h1 {
   font-size: 24px;
   margin-bottom: 10px;
   font-family: monospace;
   color: #a0fea0;
-}
-
-.wallet-section {
+}.wallet-section {
   margin-bottom: 60px;
   height: 10px;
-}
-
-canvas {
+}canvas {
   display: block;
   margin: 0 auto;
-}
-
-.color-picker-container {
+}.color-picker-container {
   display: flex;
   justify-content: center;
   width: 100px;
@@ -38,31 +30,24 @@ canvas {
   border: 1px solid #ccc;
   background-color: white;
   box-shadow: 1px 1px 1px #c3c3c3;
-}
-
-button {
+}button {
   margin-top: 10px;
   padding: 5px 10px;
   background-color: #4CAF50;
   color: white;
   border: none;
   cursor: pointer;
-}
-
-button:hover {
+}button:hover {
   background-color: #45a049;
-}
-
-.canvas-container {
+}.canvas-container {
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: row;
   gap: 5px;
-}
-
-.pixel-canvas {
+}.pixel-canvas {
   box-shadow: 4px 4px 8px rgba(35, 35, 35, 0.3), 2px 3px 3px rgba(41, 41, 41, 0.8);
   border: 2mm ridge #0c161f;
   cursor: none;
 }
+

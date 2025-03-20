@@ -2,7 +2,6 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import { Connection, PublicKey, Transaction, TransactionInstruction, SystemProgram } from '@solana/web3.js';
 import { Buffer } from 'buffer';
-import nacl from 'tweetnacl';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import ColorPicker from './ColorPicker';
 import './App.css';
@@ -10,6 +9,7 @@ import './App.css';
 // Configuration de base
 const PROGRAM_ID = new PublicKey('FtcPZ5sAdSfE8K9suZ98xnhXBBgpnpHXGVu44wXzdtbL');
 const CLUSTER_URL = 'https://staging-rpc.dev2.eclipsenetwork.xyz';
+const WS_URL = 'ws://localhost:8080'; // URL du serveur WebSocket
 
 // Palette de couleurs (0-15)
 const COLORS = [
@@ -19,52 +19,45 @@ const COLORS = [
 
 function App() {
   const { connection } = useConnection();
-  const { connected, signMessage, publicKey, sendTransaction } = useWallet();
-  const [canvasData, setCanvasData] = useState(Array(200).fill().map(() => Array(200).fill(0)));
+  const { connected, publicKey, sendTransaction } = useWallet();
+  const [canvasData, setCanvasData] = useState(null); // Initialisé à null avant réception
   const canvasRef = useRef(null);
   const [selectedColor, setSelectedColor] = useState(null);
   const [isLoaded, setLoaded] = useState(false);
   let mousePixel = null;
   let ctx = null;
+  const wsRef = useRef(null);
 
-  // Charger les données du canvas au démarrage
-  const loadCanvas = async () => {
-    const newCanvas = Array(200).fill().map(() => Array(200).fill(0));
+  // Connexion au WebSocket et gestion des messages
+  useEffect(() => {
+    const ws = new WebSocket(WS_URL);
+    wsRef.current = ws;
 
-    for (let q = 0; q < 4; q++) {
-      for (let x = 0; x < 10; x++) {
-        for (let y = 0; y < 10; y++) {
-          const [subsectionPda] = PublicKey.findProgramAddressSync(
-            [Buffer.from('subsection'), Buffer.from([q]), Buffer.from([x]), Buffer.from([y])],
-            PROGRAM_ID
-          );
-          try {
-            const accountInfo = await connection.getAccountInfo(subsectionPda);
-            if (accountInfo) {
-              const data = accountInfo.data;
-              const pixels = data.slice(11); // Skip quadrant, x, y (3 bytes)
-              for (let i = 0; i < 10; i++) {
-                for (let j = 0; j < 10; j++) {
-                  const index = i * 10 + j;
-                  const byte = pixels[Math.floor(index / 2) + 3]; // Adjust offset
-                  const color = (index % 2 === 0) ? (byte & 0x0F) : (byte >> 4);
-                  const globalX = q % 2 * 100 + x * 10 + i;
-                  const globalY = Math.floor(q / 2) * 100 + y * 10 + j;
-                  newCanvas[globalX][globalY] = color;
-                }
-              }
-            } else {
-              console.log(`Subsection (${q},${x},${y}) not found or uninitialized at ${subsectionPda.toBase58()}`);
-            }
-          } catch (err) {
-            console.log(`Error loading subsection (${q},${x},${y}): ${err.message}`);
-          }
-        }
+    ws.onopen = () => {
+      console.log('Connecté au serveur WebSocket');
+    };
+
+    ws.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      if (message.type === 'init') {
+        setCanvasData(message.data);
+        setLoaded(true);
+      } else if (message.type === 'update') {
+        const { x, y, color } = message.data;
+        setCanvasData(prev => {
+          const newCanvas = [...prev];
+          newCanvas[x][y] = color;
+          return newCanvas;
+        });
       }
-    }
-    setLoaded(true);
-    setCanvasData(newCanvas);
-  };
+    };
+
+    ws.onclose = () => {
+      console.log('Déconnecté du serveur WebSocket');
+    };
+
+    return () => ws.close();
+  }, []);
 
   const handleMouseMove = (e) => {
     if (!selectedColor || !canvasRef.current) return;
@@ -86,55 +79,48 @@ function App() {
     if (x >= 0 && y >= 0 && x <= 199 && y <= 199) {
       ctx.fillStyle = COLORS[selectedColor];
       ctx.fillRect(x, y, 1, 1);
-      mousePixel = {x: x, y: y};
+      mousePixel = { x: x, y: y };
     } else {
-      if (mousePixel
-          && mousePixel.x >= 0
-          && mousePixel.y >= 0
-          && mousePixel.x <= 199
-          && mousePixel.y <= 199 ) {
-        let idx = canvasData[mousePixel.x][mousePixel.y]
-        if (idx < 15 && idx >= 0) {
-        ctx.fillStyle = COLORS[canvasData[mousePixel.x][mousePixel.y]];
-        ctx.fillRect(mousePixel.x, mousePixel.y, 1, 1);
+      if (mousePixel && 
+          mousePixel.x >= 0 && 
+          mousePixel.y >= 0 && 
+          mousePixel.x <= 199 && 
+          mousePixel.y <= 199) {
+        const idx = canvasData[mousePixel.x][mousePixel.y];
+        if (idx >= 0 && idx <= 15) {
+          ctx.fillStyle = COLORS[idx];
+          ctx.fillRect(mousePixel.x, mousePixel.y, 1, 1);
         }
       }
     }
   };
 
-  window.addEventListener('mousemove', (e) => {
-    handleMouseMove(e);
-  })
-
-
-
   useEffect(() => {
-    loadCanvas();
-  }, [connection]);
+    const handleMove = (e) => handleMouseMove(e);
+    window.addEventListener('mousemove', handleMove);
+    return () => window.removeEventListener('mousemove', handleMove);
+  }, [selectedColor, canvasData]);
 
-  // Dessiner le canvas
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (ctx === null) {
-      ctx = canvas.getContext('2d');
-    }
+    if (!canvas || !isLoaded || !canvasData) return;
+    if (!ctx) ctx = canvas.getContext('2d');
     for (let x = 0; x < 200; x++) {
       for (let y = 0; y < 200; y++) {
         ctx.fillStyle = COLORS[canvasData[x][y]];
         ctx.fillRect(x, y, 1, 1);
       }
     }
-  }, [canvasData]);
+  }, [canvasData, isLoaded]);
 
-  const handleCanvasClick = (event) => {
-    //if (!isLoaded) return;
-    handleDrawPixel().finally();
+  const handleCanvasClick = async () => {
+    if (!isLoaded || !mousePixel) return;
+    await handleDrawPixel();
   };
 
-  // Envoyer la transaction pour modifier le pixel
   const handleDrawPixel = async () => {
     const selectedPixel = mousePixel;
-    if (!mousePixel) return;
+    if (!selectedPixel || !publicKey) return;
 
     const quadrant = Math.floor(selectedPixel.x / 100) + Math.floor(selectedPixel.y / 100) * 2;
     const subX = Math.floor((selectedPixel.x % 100) / 10);
@@ -147,22 +133,23 @@ function App() {
       PROGRAM_ID
     );
 
+    const recipientPubkey = new PublicKey('EiogKSRa3tQJXyFrQqecc5z8DHNwjAn8pdR61yTKdLaP');
+
     const pixel = { x: pixelX, y: pixelY, color: selectedColor };
 
-    // Construire les données comme dans init.js
-    const data = Buffer.alloc(8 + 4 + 3); // Discriminator (8) + Nombre de pixels (4) + Pixel data (3)
-    Buffer.from([180, 185, 58, 15, 109, 2, 112, 85]).copy(data, 0); // Discriminator de draw_pixels_direct
-    data.writeUInt32LE(1, 8); // Nombre de pixels (1)
-    data.writeUInt8(pixel.x, 12); // x
-    data.writeUInt8(pixel.y, 13); // y
-    data.writeUInt8(pixel.color, 14); // color
+    const data = Buffer.alloc(8 + 4 + 3);
+    Buffer.from([180, 185, 58, 15, 109, 2, 112, 85]).copy(data, 0);
+    data.writeUInt32LE(1, 8);
+    data.writeUInt8(pixel.x, 12);
+    data.writeUInt8(pixel.y, 13);
+    data.writeUInt8(pixel.color, 14);
 
-    // Créer l'instruction manuellement
     const drawPixelsIx = new TransactionInstruction({
       keys: [
-        { pubkey: subsectionPda, isSigner: false, isWritable: true }, // Subsection
-        { pubkey: publicKey, isSigner: true, isWritable: false }, // Authority
-        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }, // System program
+        { pubkey: subsectionPda, isSigner: false, isWritable: true },
+        { pubkey: publicKey, isSigner: true, isWritable: true },
+        { pubkey: recipientPubkey, isSigner: false, isWritable: true },
+        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
       ],
       programId: PROGRAM_ID,
       data: data,
@@ -173,8 +160,7 @@ function App() {
     try {
       const signature = await sendTransaction(transaction, connection);
       await connection.confirmTransaction(signature, 'confirmed');
-
-      // Mettre à jour localement le canvas
+      // Mise à jour locale immédiate (optionnel, le serveur la diffusera aussi)
       const newCanvas = [...canvasData];
       newCanvas[selectedPixel.x][selectedPixel.y] = selectedColor;
       setCanvasData(newCanvas);
@@ -184,34 +170,34 @@ function App() {
   };
 
   return (
-            <div className={"App"}>
-              <h1>Pixel War Canvas</h1>
-              <div className="wallet-section">
-                <WalletMultiButton/>
-              </div>
-              <div style={{display: !isLoaded ? "block" : "none"}}>
-                <h1>Loading....</h1>
-              </div>
-              <div className={isLoaded ? "" : "hidden"}>
-                <div className={"canvas-container"}>
-                  <div className="color-picker-container">
-                          <ColorPicker
-                              colors={COLORS}
-                              onSelect={(color) => setSelectedColor(color)}
-                              selectedColor={selectedColor}
-                          />
-                    </div>
-                  <canvas
-                      ref={canvasRef}
-                      width={200}
-                      height={200}
-                      className={"pixel-canvas"}
-                      style={{width: '600px', height: '600px', imageRendering: 'pixelated'}}
-                      onClick={handleCanvasClick}
-                  />
-                </div>
-              </div>
-            </div>
+    <div className="App">
+      <h1>Pixel War Canvas</h1>
+      <div className="wallet-section">
+        <WalletMultiButton />
+      </div>
+      <div style={{ display: !isLoaded ? "block" : "none" }}>
+        <h1>Chargement...</h1>
+      </div>
+      <div className={isLoaded ? "" : "hidden"}>
+        <div className="canvas-container">
+          <div className="color-picker-container">
+            <ColorPicker
+              colors={COLORS}
+              onSelect={(color) => setSelectedColor(color)}
+              selectedColor={selectedColor}
+            />
+          </div>
+          <canvas
+            ref={canvasRef}
+            width={200}
+            height={200}
+            className="pixel-canvas"
+            style={{ width: '600px', height: '600px', imageRendering: 'pixelated' }}
+            onClick={handleCanvasClick}
+          />
+        </div>
+      </div>
+    </div>
   );
 }
 
