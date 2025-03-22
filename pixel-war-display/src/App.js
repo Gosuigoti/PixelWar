@@ -28,8 +28,12 @@ function App() {
   let ctx = null;
   const wsRef = useRef(null);
   const [zoom, setZoom] = useState(1);
+  const targetZoomRef = useRef(1); // Pour suivre le zoom cible pendant l'animation
   const scrollContainerRef = useRef(null);
+  const animationRef = useRef(null); // Référence pour l'animation
+  const lastScrollRef = useRef({ left: 0, top: 0 }); // Pour mémoriser la dernière position de défilement
 
+  // Amélioration de la fonction de zoom pour une animation fluide
   const handleWheel = (e) => {
     e.preventDefault();
     const container = scrollContainerRef.current;
@@ -44,27 +48,66 @@ function App() {
     const viewportX = mouseX + container.scrollLeft;
     const viewportY = mouseY + container.scrollTop;
 
-    // Déterminer la direction du zoom
-    const delta = e.deltaY < 0 ? 0.2 : -0.2;
+    // Déterminer l'intensité et la direction du zoom (plus sensible pour une expérience plus fluide)
+    const zoomIntensity = 0.5;
+    const delta = e.deltaY < 0 ? zoomIntensity : -zoomIntensity;
+
+    // Annuler toute animation en cours
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
 
     // Calcul du nouveau zoom avec des limites
-    const newZoom = Math.min(Math.max(zoom + delta, 1), 10);
+    const newTargetZoom = Math.min(Math.max(zoom + delta, 1), 10);
+    targetZoomRef.current = newTargetZoom;
 
-    // Appliquer le nouveau zoom
-    setZoom(newZoom);
+    // Mémoriser la position de défilement actuelle
+    lastScrollRef.current = {
+      left: container.scrollLeft,
+      top: container.scrollTop
+    };
 
-    // Ajuster le défilement pour maintenir le point sous le curseur
-    const zoomRatio = newZoom / zoom;
+    // Point focal du zoom
+    const focusPoint = {
+      x: viewportX,
+      y: viewportY
+    };
 
-    // Calculer les nouvelles positions de défilement
-    const newScrollLeft = viewportX * zoomRatio - mouseX;
-    const newScrollTop = viewportY * zoomRatio - mouseY;
+    // Commencer l'animation de zoom
+    const startZoom = zoom;
+    const startTime = performance.now();
+    const duration = 150; // Durée plus courte pour une réactivité accrue
 
-    // Appliquer les nouvelles positions de défilement
-    container.scrollLeft = newScrollLeft;
-    container.scrollTop = newScrollTop;
+    const animateZoom = (currentTime) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      // Fonction d'easing pour une animation douce
+      // On utilise une fonction ease-out pour un effet de ralentissement naturel
+      const easedProgress = 1 - Math.pow(1 - progress, 3);
+
+      // Interpolation du zoom
+      const currentZoom = startZoom + (targetZoomRef.current - startZoom) * easedProgress;
+
+      // Mettre à jour le zoom
+      setZoom(currentZoom);
+
+      // Ajuster le défilement pour maintenir le point focal
+      const zoomRatio = currentZoom / startZoom;
+      container.scrollLeft = focusPoint.x * zoomRatio - mouseX;
+      container.scrollTop = focusPoint.y * zoomRatio - mouseY;
+
+      // Continuer l'animation si nécessaire
+      if (progress < 1) {
+        animationRef.current = requestAnimationFrame(animateZoom);
+      } else {
+        // Animation terminée, nettoyer la référence
+        animationRef.current = null;
+      }
+    };
+
+    animationRef.current = requestAnimationFrame(animateZoom);
   };
-
 
   // Connexion au WebSocket et gestion des messages
   useEffect(() => {
@@ -94,7 +137,13 @@ function App() {
       console.log('Déconnecté du serveur WebSocket');
     };
 
-    return () => ws.close();
+    return () => {
+      ws.close();
+      // S'assurer d'annuler toute animation en cours lors du démontage
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
   }, []);
 
   const handleMouseMove = (e) => {
@@ -103,44 +152,66 @@ function App() {
     if (!ctx) ctx = canvasRef.current.getContext('2d');
 
     const rect = canvasRef.current.getBoundingClientRect();
-    const scaling_factor_x = rect.width / canvasRef.current.width;
-    const scaling_factor_y = rect.height / canvasRef.current.height;
-    const x = Math.floor((e.clientX - rect.left) / scaling_factor_x);
-    const y = Math.floor((e.clientY - rect.top) / scaling_factor_y);
+    const container = scrollContainerRef.current;
 
+    // Position du curseur par rapport au canvas
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    // Taille réelle du canvas (indépendamment du zoom)
+    const canvasOriginalWidth = 200;
+    const canvasOriginalHeight = 200;
+
+    // Taille affichée du canvas (après le style CSS width/height)
+    const canvasDisplayWidth = 600;
+    const canvasDisplayHeight = 600;
+
+    // Ratio entre la taille affichée et la taille originale
+    const displayScale = canvasDisplayWidth / canvasOriginalWidth;
+
+    // Convertir la position de la souris en coordonnées de pixel
+    // 1. Convertir la position relative au canvas affiché
+    // 2. Diviser par le zoom pour obtenir la position dans l'espace non-zoomé
+    // 3. Diviser par displayScale pour convertir en indices de pixel (0-199)
+    const x = Math.floor(mouseX / zoom / displayScale);
+    const y = Math.floor(mouseY / zoom / displayScale);
+
+    // Restaurer le pixel précédent si la souris a bougé
     if (mousePixel.current && (mousePixel.current.x !== x || mousePixel.current.y !== y)) {
-      if (mousePixel.current.x >= 0 && mousePixel.current.y >= 0 && mousePixel.current.x <= 199 && mousePixel.current.y <= 199) {
+      if (mousePixel.current.x >= 0 && mousePixel.current.y >= 0 &&
+          mousePixel.current.x < canvasOriginalWidth && mousePixel.current.y < canvasOriginalHeight) {
         ctx.fillStyle = COLORS[canvasData[mousePixel.current.x][mousePixel.current.y]];
         ctx.fillRect(mousePixel.current.x, mousePixel.current.y, 1, 1);
       }
     }
 
-    if (x >= 0 && y >= 0 && x <= 199 && y <= 199) {
+    // Dessiner le pixel actuel avec la couleur sélectionnée si dans les limites
+    if (x >= 0 && y >= 0 && x < canvasOriginalWidth && y < canvasOriginalHeight) {
       ctx.fillStyle = COLORS[selectedColor];
       ctx.fillRect(x, y, 1, 1);
-      mousePixel.current = { x: x, y: y };
+      mousePixel.current = { x, y };
     } else {
+      // Réinitialiser si la souris sort des limites
       if (mousePixel.current &&
-          mousePixel.current.x >= 0 &&
-          mousePixel.current.y >= 0 &&
-          mousePixel.current.x <= 199 &&
-          mousePixel.current.y <= 199) {
+          mousePixel.current.x >= 0 && mousePixel.current.y >= 0 &&
+          mousePixel.current.x < canvasOriginalWidth && mousePixel.current.y < canvasOriginalHeight) {
         const idx = canvasData[mousePixel.current.x][mousePixel.current.y];
         if (idx >= 0 && idx <= 15) {
           ctx.fillStyle = COLORS[idx];
           ctx.fillRect(mousePixel.current.x, mousePixel.current.y, 1, 1);
         }
+        mousePixel.current = null;
       }
     }
   };
 
+  // Amélioration du auto-scroll pour qu'il soit plus réactif avec le zoom
   const autoScroll = (e) => {
     const container = scrollContainerRef.current;
     if (!container) return;
 
     const rect = container.getBoundingClientRect();
-    const scrollSpeed = 5; // pixels per move
-
+    const scrollSpeed = 10 / zoom; // Ajuster la vitesse de défilement en fonction du zoom
     const threshold = 30; // zone sensible au bord
 
     if (e.clientX > rect.right - threshold) {
@@ -157,15 +228,26 @@ function App() {
   }
 
   useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (container) {
+      container.addEventListener('wheel', handleWheel, { passive: false });
+    }
+
     const handleMove = (e) => handleMouseMove(e);
     window.addEventListener('mousemove', handleMove);
-    return () => window.removeEventListener('mousemove', handleMove);
-  }, [selectedColor, canvasData]);
+
+    return () => {
+      if (container) {
+        container.removeEventListener('wheel', handleWheel);
+      }
+      window.removeEventListener('mousemove', handleMove);
+    };
+  }, [zoom, selectedColor, canvasData]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !isLoaded || !canvasData) return;
-    if (!ctx) ctx = canvas.getContext('2d');
+    if (!ctx) ctx = canvas.getContext('2d', { willReadFrequently: true });
     for (let x = 0; x < 200; x++) {
       for (let y = 0; y < 200; y++) {
         ctx.fillStyle = COLORS[canvasData[x][y]];
@@ -175,7 +257,7 @@ function App() {
   }, [canvasData, isLoaded]);
 
   const handleCanvasClick = async (e) => {
-    e.preventDefault()
+    e.preventDefault();
     if (!isLoaded || !mousePixel.current) return;
     await handleDrawPixel();
   };
@@ -191,8 +273,8 @@ function App() {
     const pixelY = selectedPixel.y % 10;
 
     const [subsectionPda] = PublicKey.findProgramAddressSync(
-      [Buffer.from('subsection'), Buffer.from([quadrant]), Buffer.from([subX]), Buffer.from([subY])],
-      PROGRAM_ID
+        [Buffer.from('subsection'), Buffer.from([quadrant]), Buffer.from([subX]), Buffer.from([subY])],
+        PROGRAM_ID
     );
 
     const recipientPubkey = new PublicKey('EiogKSRa3tQJXyFrQqecc5z8DHNwjAn8pdR61yTKdLaP');
@@ -231,60 +313,127 @@ function App() {
     }
   };
 
+  // Ajout d'une gestion pour l'interaction tactile
+  const handleTouchStart = (e) => {
+    if (e.touches.length === 2) {
+      // Mode pinch-to-zoom
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+      const distance = Math.hypot(
+          touch1.clientX - touch2.clientX,
+          touch1.clientY - touch2.clientY
+      );
+      lastPinchDistanceRef.current = distance;
+    }
+  };
+
+  const lastPinchDistanceRef = useRef(0);
+
+  const handleTouchMove = (e) => {
+    if (e.touches.length === 2) {
+      // Gestion du pinch-to-zoom
+      const touch1 = e.touches[0];
+      const touch2 = e.touches[1];
+      const distance = Math.hypot(
+          touch1.clientX - touch2.clientX,
+          touch1.clientY - touch2.clientY
+      );
+
+      const container = scrollContainerRef.current;
+      if (!container) return;
+
+      // Centre du pinch
+      const centerX = (touch1.clientX + touch2.clientX) / 2;
+      const centerY = (touch1.clientY + touch2.clientY) / 2;
+
+      // Position relative au conteneur
+      const rect = container.getBoundingClientRect();
+      const mouseX = centerX - rect.left;
+      const mouseY = centerY - rect.top;
+
+      // Position dans le contenu défilant
+      const viewportX = mouseX + container.scrollLeft;
+      const viewportY = mouseY + container.scrollTop;
+
+      // Calculer le changement de zoom basé sur la différence de distance
+      if (lastPinchDistanceRef.current > 0) {
+        const delta = distance - lastPinchDistanceRef.current;
+        const zoomDelta = delta * 0.01; // Ajuster la sensibilité
+
+        // Calculer le nouveau zoom
+        const newZoom = Math.min(Math.max(zoom + zoomDelta, 1), 10);
+
+        // Mettre à jour le zoom
+        if (newZoom !== zoom) {
+          const zoomRatio = newZoom / zoom;
+          setZoom(newZoom);
+
+          // Ajuster le défilement pour maintenir le centre du pinch
+          container.scrollLeft = viewportX * zoomRatio - mouseX;
+          container.scrollTop = viewportY * zoomRatio - mouseY;
+        }
+      }
+
+      lastPinchDistanceRef.current = distance;
+    }
+  };
+
   return (
-    <div className="App">
-      <h1>Pixel War Canvas</h1>
-      <div className="wallet-section">
-        <WalletMultiButton />
-      </div>
-      <div style={{ display: !isLoaded ? "block" : "none" }}>
-        <h1>Chargement...</h1>
-      </div>
-      <div className={isLoaded ? "" : "hidden"}>
-        <div className="canvas-container">
-          <div className="color-picker-container">
-            <ColorPicker
-              colors={COLORS}
-              onSelect={(color) => setSelectedColor(color)}
-              selectedColor={selectedColor}
-            />
-          </div>
-          <div
-              onWheel={handleWheel}
-              ref={scrollContainerRef}
-              className={"scroll-container"}
-              style={{
-                overflow: 'auto',
-                width: '600px',
-                height: '600px',
-              }}
-          >
+      <div className="App">
+        <h1>Pixel War Canvas</h1>
+        <div className="wallet-section">
+          <WalletMultiButton />
+        </div>
+        <div style={{ display: !isLoaded ? "block" : "none" }}>
+          <h1>Chargement...</h1>
+        </div>
+        <div className={isLoaded ? "" : "hidden"}>
+          <div className="canvas-container">
+            <div className="color-picker-container">
+              <ColorPicker
+                  colors={COLORS}
+                  onSelect={(color) => setSelectedColor(color)}
+                  selectedColor={selectedColor}
+              />
+            </div>
             <div
+                ref={scrollContainerRef}
+                className="scroll-container"
                 style={{
                   overflow: 'auto',
-                  transform: `scale(${zoom})`,
-                  transformOrigin: 'top left',
-                  width: 'fit-content',
+                  width: '600px',
+                  height: '600px',
+                  WebkitOverflowScrolling: 'touch', // Pour un défilement fluide sur iOS
                 }}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
             >
-              <canvas
-                  ref={canvasRef}
-                  width={200}
-                  height={200}
-                  className="pixel-canvas"
+              <div
                   style={{
-                    cursor: selectedColor === null ? 'crosshair' : 'none',
-                    imageRendering: 'pixelated',
-                    width: '600px',
-                    height: '600px',
+                    transform: `scale(${zoom})`,
+                    transformOrigin: 'top left',
+                    width: 'fit-content',
+                    willChange: 'transform', // Optimisation pour les animations
                   }}
-                  onClick={handleCanvasClick}
-              />
+              >
+                <canvas
+                    ref={canvasRef}
+                    width={200}
+                    height={200}
+                    className="pixel-canvas"
+                    style={{
+                      cursor: selectedColor === null ? 'crosshair' : 'none',
+                      imageRendering: 'pixelated',
+                      width: '600px',
+                      height: '600px',
+                    }}
+                    onClick={handleCanvasClick}
+                />
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
   );
 }
 
