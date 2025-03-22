@@ -546,7 +546,7 @@ function App() {
           </div>
         </div>
         <div style={{ display: !isLoaded ? "block" : "none" }}>
-          <h1>Chargement...</h1>
+          <h1>Loading...</h1>
         </div>
         <div className={isLoaded ? "" : "hidden"}>
           <div className="canvas-container">

@@ -1,4 +1,7 @@
-module.exports = function override(config) {
+module.exports = function override(config, env) {
+    if (env === 'production') {
+        config.devtool = false;
+    }
     config.resolve.fallback = {
       ...config.resolve.fallback,
       crypto: require.resolve('crypto-browserify'),
