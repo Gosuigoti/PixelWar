@@ -24,6 +24,41 @@ const GRID_HEIGHT = 200;
 // Facteur de base pour la limite de déplacement
 const BASE_PAN_LIMIT = 100;
 
+// Toast component
+const Toast = ({ message, type, onClose }) => {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      onClose();
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+      <div className={`toast toast-${type}`}>
+        <div className="toast-content">
+          <span>{message}</span>
+        </div>
+        <button className="toast-close" onClick={onClose}>&times;</button>
+      </div>
+  );
+};
+
+// ToastContainer component
+const ToastContainer = ({ toasts, removeToast }) => {
+  return (
+      <div className="toast-container">
+        {toasts.map((toast) => (
+            <Toast
+                key={toast.id}
+                message={toast.message}
+                type={toast.type}
+                onClose={() => removeToast(toast.id)}
+            />
+        ))}
+      </div>
+  );
+};
+
 function App() {
   const { connection } = useConnection();
   const { publicKey, sendTransaction } = useWallet();
@@ -42,6 +77,21 @@ function App() {
   const [mouseDown, setMouseDown] = useState(false);
   const startDragOffset = useRef({ x: 0, y: 0 });
   const rafId = useRef(null);
+
+  // Toast state
+  const [toasts, setToasts] = useState([]);
+  const toastIdCounter = useRef(0);
+
+  // Add toast function
+  const addToast = (message, type = 'info') => {
+    const id = toastIdCounter.current++;
+    setToasts(prevToasts => [...prevToasts, { id, message, type }]);
+  };
+
+  // Remove toast function
+  const removeToast = (id) => {
+    setToasts(prevToasts => prevToasts.filter(toast => toast.id !== id));
+  };
 
   useEffect(() => {
     offscreenCanvasRef.current = document.createElement('canvas');
@@ -81,15 +131,26 @@ function App() {
   }, [containerSize]);
 
   useEffect(() => {
+    let isActive = true; // Garde référence si cet effet est toujours actif
+
     const ws = new WebSocket('wss://eclipse-pixel-war.xyz/ws');
     wsRef.current = ws;
 
-    ws.onopen = () => console.log('Connecté au serveur WebSocket');
+    ws.onopen = () => {
+      if (isActive) { // Vérifier si l'effet est toujours actif
+        console.log('Connected to the server WebSocket');
+        addToast('Connected to the server', 'success');
+      }
+    };
+
     ws.onmessage = (event) => {
+      if (!isActive) return; // Ne pas traiter si l'effet n'est plus actif
+
       const message = JSON.parse(event.data);
       if (message.type === 'init') {
         setCanvasData(message.data);
         setLoaded(true);
+        addToast('Canvas successfully loaded', 'success');
       } else if (message.type === 'update') {
         const { x, y, color } = message.data;
         setCanvasData(prev => {
@@ -99,10 +160,40 @@ function App() {
         });
       }
     };
-    ws.onclose = () => console.log('Déconnecté du serveur WebSocket');
 
-    return () => ws.close();
-  }, []);
+    ws.onclose = () => {
+      if (isActive) { // Ne pas montrer de toasts si nous nettoyons l'effet
+        console.log('Disconnected from the server WebSocket');
+        addToast('Disconnected from the server', 'error');
+      }
+    };
+
+    ws.onerror = (error) => {
+      if (isActive) {
+        console.error('Erreur WebSocket:', error);
+        addToast('Server connection error', 'error');
+      }
+    };
+
+    // Ce code s'exécute lors du démontage du composant
+    return () => {
+      isActive = false; // Marquer l'effet comme inactif
+
+      // Stocker une référence à la socket avant de la fermer
+      const socket = wsRef.current;
+
+      // Si nous sommes en train de nettoyer lors du double rendu initial, ne fermons pas la socket
+      if (process.env.NODE_ENV === 'development') {
+        // En dev, on garde la WebSocket ouverte pour éviter le problème de double rendu
+        wsRef.current = null; // Détacher la référence sans fermer
+      } else {
+        // En production, fermer proprement
+        if (socket && socket.readyState !== WebSocket.CLOSED) {
+          socket.close();
+        }
+      }
+    };
+  }, []); // Tableau de dépendances vide pour s'exécuter une seule fois
 
   const clampTranslatePos = (pos) => {
     const basePixelSize = Math.min(containerSize.width / GRID_WIDTH, containerSize.height / GRID_HEIGHT);
@@ -267,7 +358,26 @@ function App() {
 
   const handleCanvasClick = async (e) => {
     e.preventDefault();
-    if (!isLoaded || !mousePixel.current) return;
+    if (!isLoaded) {
+      addToast('Canvas not loaded', 'error');
+      return;
+    }
+
+    if (!mousePixel.current) {
+      return;
+    }
+
+    if (!publicKey) {
+      addToast('Wallet not connected', 'error');
+      return;
+    }
+
+    if (selectedColor === null) {
+      addToast('Select a color', 'warning');
+      return;
+    }
+
+    addToast('Adding the pixel...', 'info');
     await handleDrawPixel();
   };
 
@@ -316,8 +426,10 @@ function App() {
       const newCanvas = [...canvasData];
       newCanvas[selectedPixel.x][selectedPixel.y] = selectedColor;
       setCanvasData(newCanvas);
+      addToast('Pixel added successfully', 'success');
     } catch (error) {
-      console.warn('Erreur lors de la transaction :', error);
+      console.warn('Transaction error :', error);
+      addToast(`Error: ${error.message || 'Transaction failed'}`, 'error');
     }
   };
 
@@ -397,6 +509,12 @@ function App() {
   const resetCanvasPosition = () => {
     setScale(1.0);
     setTranslatePos({ x: 0, y: 0 });
+    addToast('Canvas reset', 'info');
+  };
+
+  const handleColorSelect = (color) => {
+    setSelectedColor(color);
+    addToast(`Color selected: ${COLORS[color]}`, 'info');
   };
 
   return (
@@ -431,7 +549,7 @@ function App() {
             <div className="color-picker-container">
               <ColorPicker
                   colors={COLORS}
-                  onSelect={(color) => setSelectedColor(color)}
+                  onSelect={handleColorSelect}
                   selectedColor={selectedColor}
               />
             </div>
@@ -469,6 +587,9 @@ function App() {
             </div>
           </div>
         </div>
+
+        {/* Toast container */}
+        <ToastContainer toasts={toasts} removeToast={removeToast} />
       </div>
   );
 }
