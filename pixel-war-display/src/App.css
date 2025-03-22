@@ -46,8 +46,36 @@
   flex-direction: row;
   gap: 5px;
 }.pixel-canvas {
-  box-shadow: 4px 4px 8px rgba(35, 35, 35, 0.3), 2px 3px 3px rgba(41, 41, 41, 0.8);
-  border: 2mm ridge #0c161f;
   cursor: none;
 }
 
+
+ .scroll-container {
+   box-shadow: 4px 4px 8px rgba(35, 35, 35, 0.3), 2px 3px 3px rgba(41, 41, 41, 0.8);
+   border: 2mm ridge #0c161f;
+   scrollbar-width: none; /* cache scrollbar */
+   -ms-overflow-style: none; /* IE/Edge Legacy */
+ }
+/* Cibler la scrollbar */
+.scroll-container::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+/* Le "track" (fond de la scrollbar) */
+.scroll-container::-webkit-scrollbar-track {
+  background: #f0f0f0;
+  border-radius: 10px;
+}
+
+/* Le "thumb" (la partie qu’on glisse) */
+.scroll-container::-webkit-scrollbar-thumb {
+  background: #2f0453;
+  border-radius: 10px;
+  border: 3px solid white;
+}
+
+/* Au hover */
+.scroll-container::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
