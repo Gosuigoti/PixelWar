@@ -10,10 +10,9 @@ const connection = new Connection(CLUSTER_URL, 'confirmed');
 // Initialiser le canvas (200x200 pixels, chaque pixel est un uint4, donc 0-15)
 let canvas = Array(200).fill().map(() => Array(200).fill(0));
 
-// Charger l'état initial du canvas
+// Charger l'état initial du canvas (version séquentielle)
 async function loadCanvas() {
   console.log('Chargement initial du canvas...');
-  const subsectionPromises = [];
 
   for (let q = 0; q < 4; q++) {
     for (let x = 0; x < 10; x++) {
@@ -22,32 +21,24 @@ async function loadCanvas() {
           [Buffer.from('subsection'), Buffer.from([q]), Buffer.from([x]), Buffer.from([y])],
           PROGRAM_ID
         );
-        subsectionPromises.push(
-          connection.getAccountInfo(subsectionPda).then(accountInfo => ({
-            q, x, y, accountInfo
-          })).catch(err => {
-            console.log(`Erreur pour (${q},${x},${y}): ${err.message}`);
-            return { q, x, y, accountInfo: null };
-          })
-        );
-      }
-    }
-  }
-
-  const subsections = await Promise.all(subsectionPromises);
-
-  for (const { q, x, y, accountInfo } of subsections) {
-    if (accountInfo) {
-      const data = accountInfo.data;
-      const pixels = data.slice(11); // Après l'en-tête (discriminateur + quadrant/x/y)
-      for (let i = 0; i < 10; i++) {
-        for (let j = 0; j < 10; j++) {
-          const index = i * 10 + j;
-          const byte = pixels[Math.floor(index / 2)];
-          const color = (index % 2 === 0) ? (byte & 0x0F) : (byte >> 4);
-          const globalX = q % 2 * 100 + x * 10 + i;
-          const globalY = Math.floor(q / 2) * 100 + y * 10 + j;
-          canvas[globalX][globalY] = color;
+        try {
+          const accountInfo = await connection.getAccountInfo(subsectionPda);
+          if (accountInfo) {
+            const data = accountInfo.data;
+            const pixels = data.slice(11); // Après l'en-tête
+            for (let i = 0; i < 10; i++) {
+              for (let j = 0; j < 10; j++) {
+                const index = i * 10 + j;
+                const byte = pixels[Math.floor(index / 2)];
+                const color = (index % 2 === 0) ? (byte & 0x0F) : (byte >> 4);
+                const globalX = q % 2 * 100 + x * 10 + i;
+                const globalY = Math.floor(q / 2) * 100 + y * 10 + j;
+                canvas[globalX][globalY] = color;
+              }
+            }
+          }
+        } catch (err) {
+          console.log(`Erreur pour (${q},${x},${y}): ${err.message}`);
         }
       }
     }
@@ -63,7 +54,6 @@ async function listenToTransactions() {
       const accountInfo = keyedAccountInfo.accountInfo;
       const data = accountInfo.data;
 
-      // Vérifier si c'est un compte subsection
       if (data.length === 61) { // 8 (discriminateur) + 1 (quadrant) + 1 (x) + 1 (y) + 50 (pixels)
         const quadrant = data[8];
         const x = data[9];

@@ -30,7 +30,7 @@ function App() {
 
   // Connexion au WebSocket et gestion des messages
   useEffect(() => {
-    const ws = new WebSocket(WS_URL);
+    const ws = new WebSocket('wss://eclipse-pixel-war.xyz/ws');
     wsRef.current = ws;
 
     ws.onopen = () => {
