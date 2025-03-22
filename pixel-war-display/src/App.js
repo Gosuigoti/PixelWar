@@ -17,6 +17,13 @@ const COLORS = [
   '#808080', '#800000', '#008000', '#000080', '#FFA500', '#800080', '#C0C0C0', '#FFD700'
 ];
 
+// Dimensions de la grille de pixels
+const GRID_WIDTH = 200;
+const GRID_HEIGHT = 200;
+
+// Facteur de base pour la limite de déplacement (sera multiplié par le niveau de zoom)
+const BASE_PAN_LIMIT = 100; // Limite de base en pixels
+
 function App() {
   const { connection } = useConnection();
   const { publicKey, sendTransaction } = useWallet();
@@ -27,87 +34,51 @@ function App() {
   let mousePixel = useRef(null);
   let ctx = null;
   const wsRef = useRef(null);
-  const [zoom, setZoom] = useState(1);
-  const targetZoomRef = useRef(1); // Pour suivre le zoom cible pendant l'animation
-  const scrollContainerRef = useRef(null);
-  const animationRef = useRef(null); // Référence pour l'animation
-  const lastScrollRef = useRef({ left: 0, top: 0 }); // Pour mémoriser la dernière position de défilement
+  const containerRef = useRef(null);
+  const [containerSize, setContainerSize] = useState({ width: 600, height: 600 });
 
-  // Amélioration de la fonction de zoom pour une animation fluide
-  const handleWheel = (e) => {
-    e.preventDefault();
-    const container = scrollContainerRef.current;
-    if (!container) return;
+  // Nouvelle approche pour le zoom et le déplacement
+  const [scale, setScale] = useState(1.0);
+  const [translatePos, setTranslatePos] = useState({ x: 300, y: 300 }); // Centre du conteneur initial
+  const [mouseDown, setMouseDown] = useState(false);
+  const startDragOffset = useRef({ x: 0, y: 0 });
 
-    // Position du curseur relative au conteneur
-    const rect = container.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+  // Observer les dimensions du conteneur
+  useEffect(() => {
+    if (!containerRef.current) return;
 
-    // Position du curseur dans le contenu défilant
-    const viewportX = mouseX + container.scrollLeft;
-    const viewportY = mouseY + container.scrollTop;
-
-    // Déterminer l'intensité et la direction du zoom (plus sensible pour une expérience plus fluide)
-    const zoomIntensity = 0.5;
-    const delta = e.deltaY < 0 ? zoomIntensity : -zoomIntensity;
-
-    // Annuler toute animation en cours
-    if (animationRef.current) {
-      cancelAnimationFrame(animationRef.current);
-    }
-
-    // Calcul du nouveau zoom avec des limites
-    const newTargetZoom = Math.min(Math.max(zoom + delta, 1), 10);
-    targetZoomRef.current = newTargetZoom;
-
-    // Mémoriser la position de défilement actuelle
-    lastScrollRef.current = {
-      left: container.scrollLeft,
-      top: container.scrollTop
-    };
-
-    // Point focal du zoom
-    const focusPoint = {
-      x: viewportX,
-      y: viewportY
-    };
-
-    // Commencer l'animation de zoom
-    const startZoom = zoom;
-    const startTime = performance.now();
-    const duration = 150; // Durée plus courte pour une réactivité accrue
-
-    const animateZoom = (currentTime) => {
-      const elapsed = currentTime - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-
-      // Fonction d'easing pour une animation douce
-      // On utilise une fonction ease-out pour un effet de ralentissement naturel
-      const easedProgress = 1 - Math.pow(1 - progress, 3);
-
-      // Interpolation du zoom
-      const currentZoom = startZoom + (targetZoomRef.current - startZoom) * easedProgress;
-
-      // Mettre à jour le zoom
-      setZoom(currentZoom);
-
-      // Ajuster le défilement pour maintenir le point focal
-      const zoomRatio = currentZoom / startZoom;
-      container.scrollLeft = focusPoint.x * zoomRatio - mouseX;
-      container.scrollTop = focusPoint.y * zoomRatio - mouseY;
-
-      // Continuer l'animation si nécessaire
-      if (progress < 1) {
-        animationRef.current = requestAnimationFrame(animateZoom);
-      } else {
-        // Animation terminée, nettoyer la référence
-        animationRef.current = null;
+    const updateContainerSize = () => {
+      const container = containerRef.current;
+      if (container) {
+        const { width, height } = container.getBoundingClientRect();
+        setContainerSize({ width, height });
+        // Mettre à jour le centre initial de translation
+        setTranslatePos({ x: width / 2, y: height / 2 });
       }
     };
 
-    animationRef.current = requestAnimationFrame(animateZoom);
-  };
+    // Exécuter immédiatement pour la taille initiale
+    updateContainerSize();
+
+    // Configuration de l'observateur de redimensionnement
+    const resizeObserver = new ResizeObserver(updateContainerSize);
+    resizeObserver.observe(containerRef.current);
+
+    return () => {
+      if (containerRef.current) {
+        resizeObserver.unobserve(containerRef.current);
+      }
+    };
+  }, []);
+
+  // Ajuster la taille du canvas quand containerSize change
+  useEffect(() => {
+    if (canvasRef.current) {
+      canvasRef.current.width = containerSize.width;
+      canvasRef.current.height = containerSize.height;
+      drawCanvas();
+    }
+  }, [containerSize]);
 
   // Connexion au WebSocket et gestion des messages
   useEffect(() => {
@@ -139,122 +110,192 @@ function App() {
 
     return () => {
       ws.close();
-      // S'assurer d'annuler toute animation en cours lors du démontage
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
     };
   }, []);
 
-  const handleMouseMove = (e) => {
-    autoScroll(e);
-    if (!selectedColor || !canvasRef.current) return;
-    if (!ctx) ctx = canvasRef.current.getContext('2d');
+  // Fonction pour limiter la position de translation en tenant compte du zoom
+  const clampTranslatePos = (pos) => {
+    // Calculer la taille effective du canvas après zoom
+    const pixelSize = Math.max(1, Math.min(
+        containerSize.width / GRID_WIDTH,
+        containerSize.height / GRID_HEIGHT
+    )) * scale;
 
-    const rect = canvasRef.current.getBoundingClientRect();
-    const container = scrollContainerRef.current;
+    const effectiveCanvasWidth = GRID_WIDTH * pixelSize;
+    const effectiveCanvasHeight = GRID_HEIGHT * pixelSize;
 
-    // Position du curseur par rapport au canvas
+    // Calculer le centre du conteneur
+    const centerX = containerSize.width / 2;
+    const centerY = containerSize.height / 2;
+
+    // Calculer les limites de déplacement adaptatives
+    // Plus le zoom est grand, plus la limite est grande
+    // La limite s'adapte pour ne jamais laisser le canvas complètement hors de vue
+    const maxOffsetX = Math.max(effectiveCanvasWidth / 2, containerSize.width / 2 + BASE_PAN_LIMIT * scale);
+    const maxOffsetY = Math.max(effectiveCanvasHeight / 2, containerSize.height / 2 + BASE_PAN_LIMIT * scale);
+
+    return {
+      x: Math.min(Math.max(pos.x, centerX - maxOffsetX), centerX + maxOffsetX),
+      y: Math.min(Math.max(pos.y, centerY - maxOffsetY), centerY + maxOffsetY)
+    };
+  };
+
+  // Nouvelle fonction de dessin qui applique le zoom et la translation
+  const drawCanvas = () => {
+    if (!canvasRef.current || !isLoaded || !canvasData) return;
+
+    const canvas = canvasRef.current;
+    if (!ctx) ctx = canvas.getContext('2d', { willReadFrequently: true });
+    else ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+    // Effacer le canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Appliquer la transformation
+    ctx.save();
+    ctx.translate(translatePos.x, translatePos.y);
+    ctx.scale(scale, scale);
+
+    // Calculer la taille réelle des pixels pour remplir le canvas
+    const pixelSize = Math.max(1, Math.min(
+        canvas.width / GRID_WIDTH,
+        canvas.height / GRID_HEIGHT
+    ));
+
+    // Dessiner les pixels avec décalage pour centrer le contenu
+    const offsetX = -GRID_WIDTH * pixelSize / 2;
+    const offsetY = -GRID_HEIGHT * pixelSize / 2;
+
+    // Désactiver l'antialiasing pour avoir des pixels nets
+    ctx.imageSmoothingEnabled = false;
+
+    for (let x = 0; x < GRID_WIDTH; x++) {
+      for (let y = 0; y < GRID_HEIGHT; y++) {
+        ctx.fillStyle = COLORS[canvasData[x][y]];
+
+        // Utiliser des coordonnées précises et une taille exacte pour éviter les espaces
+        // Ajouter une très légère marge supplémentaire (0.5) pour éviter les espaces dus à l'arrondi
+        ctx.fillRect(
+            offsetX + x * pixelSize,
+            offsetY + y * pixelSize,
+            pixelSize + 0.5,
+            pixelSize + 0.5
+        );
+      }
+    }
+
+    ctx.restore();
+  };
+
+  // Mise à jour du canvas quand les données ou les transformations changent
+  useEffect(() => {
+    drawCanvas();
+  }, [canvasData, isLoaded, scale, translatePos, containerSize]);
+
+  // Gestionnaire pour le zoom avec la molette
+  const handleWheel = (e) => {
+    e.preventDefault();
+
+    // Déterminer l'intensité et la direction du zoom
+    const scaleMultiplier = e.deltaY < 0 ? 1.1 : 0.9;
+    const newScale = Math.min(Math.max(scale * scaleMultiplier, 1), 20);
+
+    // Position du curseur relative au canvas
+    const rect = containerRef.current.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    // Taille réelle du canvas (indépendamment du zoom)
-    const canvasOriginalWidth = 200;
-    const canvasOriginalHeight = 200;
+    // Calculer le nouveau point de translation pour zoomer vers/depuis le curseur
+    const newTranslatePos = {
+      x: mouseX - (mouseX - translatePos.x) * (newScale / scale),
+      y: mouseY - (mouseY - translatePos.y) * (newScale / scale)
+    };
 
-    // Taille affichée du canvas (après le style CSS width/height)
-    const canvasDisplayWidth = 600;
-    const canvasDisplayHeight = 600;
-
-    // Ratio entre la taille affichée et la taille originale
-    const displayScale = canvasDisplayWidth / canvasOriginalWidth;
-
-    // Convertir la position de la souris en coordonnées de pixel
-    // 1. Convertir la position relative au canvas affiché
-    // 2. Diviser par le zoom pour obtenir la position dans l'espace non-zoomé
-    // 3. Diviser par displayScale pour convertir en indices de pixel (0-199)
-    const x = Math.floor(mouseX / zoom / displayScale);
-    const y = Math.floor(mouseY / zoom / displayScale);
-
-    // Restaurer le pixel précédent si la souris a bougé
-    if (mousePixel.current && (mousePixel.current.x !== x || mousePixel.current.y !== y)) {
-      if (mousePixel.current.x >= 0 && mousePixel.current.y >= 0 &&
-          mousePixel.current.x < canvasOriginalWidth && mousePixel.current.y < canvasOriginalHeight) {
-        ctx.fillStyle = COLORS[canvasData[mousePixel.current.x][mousePixel.current.y]];
-        ctx.fillRect(mousePixel.current.x, mousePixel.current.y, 1, 1);
-      }
-    }
-
-    // Dessiner le pixel actuel avec la couleur sélectionnée si dans les limites
-    if (x >= 0 && y >= 0 && x < canvasOriginalWidth && y < canvasOriginalHeight) {
-      ctx.fillStyle = COLORS[selectedColor];
-      ctx.fillRect(x, y, 1, 1);
-      mousePixel.current = { x, y };
-    } else {
-      // Réinitialiser si la souris sort des limites
-      if (mousePixel.current &&
-          mousePixel.current.x >= 0 && mousePixel.current.y >= 0 &&
-          mousePixel.current.x < canvasOriginalWidth && mousePixel.current.y < canvasOriginalHeight) {
-        const idx = canvasData[mousePixel.current.x][mousePixel.current.y];
-        if (idx >= 0 && idx <= 15) {
-          ctx.fillStyle = COLORS[idx];
-          ctx.fillRect(mousePixel.current.x, mousePixel.current.y, 1, 1);
-        }
-        mousePixel.current = null;
-      }
-    }
+    setScale(newScale);
+    // Appliquer la limite de déplacement dynamique
+    setTranslatePos(clampTranslatePos(newTranslatePos));
   };
 
-  // Amélioration du auto-scroll pour qu'il soit plus réactif avec le zoom
-  const autoScroll = (e) => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-
-    const rect = container.getBoundingClientRect();
-    const scrollSpeed = 10 / zoom; // Ajuster la vitesse de défilement en fonction du zoom
-    const threshold = 30; // zone sensible au bord
-
-    if (e.clientX > rect.right - threshold) {
-      container.scrollLeft += scrollSpeed;
-    } else if (e.clientX < rect.left + threshold) {
-      container.scrollLeft -= scrollSpeed;
-    }
-
-    if (e.clientY > rect.bottom - threshold) {
-      container.scrollTop += scrollSpeed;
-    } else if (e.clientY < rect.top + threshold) {
-      container.scrollTop -= scrollSpeed;
-    }
-  }
-
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (container) {
-      container.addEventListener('wheel', handleWheel, { passive: false });
-    }
-
-    const handleMove = (e) => handleMouseMove(e);
-    window.addEventListener('mousemove', handleMove);
-
-    return () => {
-      if (container) {
-        container.removeEventListener('wheel', handleWheel);
-      }
-      window.removeEventListener('mousemove', handleMove);
+  // Gestionnaires pour le déplacement du canvas
+  const handleMouseDown = (e) => {
+    setMouseDown(true);
+    startDragOffset.current = {
+      x: e.clientX - translatePos.x,
+      y: e.clientY - translatePos.y
     };
-  }, [zoom, selectedColor, canvasData]);
+  };
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !isLoaded || !canvasData) return;
-    if (!ctx) ctx = canvas.getContext('2d', { willReadFrequently: true });
-    for (let x = 0; x < 200; x++) {
-      for (let y = 0; y < 200; y++) {
-        ctx.fillStyle = COLORS[canvasData[x][y]];
-        ctx.fillRect(x, y, 1, 1);
-      }
+  const handleMouseUp = () => {
+    setMouseDown(false);
+  };
+
+  const handleMouseMove = (e) => {
+    if (mouseDown) {
+      // Mise à jour de la position de translation lors du déplacement
+      const newTranslatePos = {
+        x: e.clientX - startDragOffset.current.x,
+        y: e.clientY - startDragOffset.current.y
+      };
+      // Appliquer la limite de déplacement dynamique
+      setTranslatePos(clampTranslatePos(newTranslatePos));
     }
-  }, [canvasData, isLoaded]);
+
+    // Calcul de la position du pixel sous le curseur
+    if (!selectedColor || !canvasRef.current || !isLoaded) return;
+    if (!ctx) ctx = canvasRef.current.getContext('2d');
+
+    const rect = containerRef.current.getBoundingClientRect();
+
+    // Position de la souris relative au conteneur
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    // Calculer la taille réelle des pixels pour l'affichage
+    const pixelSize = Math.max(1, Math.min(
+        canvasRef.current.width / GRID_WIDTH,
+        canvasRef.current.height / GRID_HEIGHT
+    )) * scale;
+
+    // Inverser la transformation pour obtenir les coordonnées du pixel
+    const canvasX = Math.floor((mouseX - translatePos.x) / pixelSize + GRID_WIDTH / 2);
+    const canvasY = Math.floor((mouseY - translatePos.y) / pixelSize + GRID_HEIGHT / 2);
+
+    // Restaurer le pixel précédent
+    if (mousePixel.current && (mousePixel.current.x !== canvasX || mousePixel.current.y !== canvasY)) {
+      drawCanvas(); // Redessiner tout le canvas pour effacer l'aperçu précédent
+    }
+
+    // Prévisualiser le pixel actuel
+    if (canvasX >= 0 && canvasY >= 0 && canvasX < GRID_WIDTH && canvasY < GRID_HEIGHT) {
+      // Appliquer la transformation pour dessiner le pixel prévisualisé
+      ctx.save();
+      ctx.translate(translatePos.x, translatePos.y);
+      ctx.scale(scale, scale);
+
+      // Calculer la taille des pixels et le décalage
+      const pixelSize = Math.max(1, Math.min(
+          canvasRef.current.width / GRID_WIDTH,
+          canvasRef.current.height / GRID_HEIGHT
+      ));
+
+      const offsetX = -GRID_WIDTH * pixelSize / 2;
+      const offsetY = -GRID_HEIGHT * pixelSize / 2;
+
+      ctx.fillStyle = COLORS[selectedColor];
+      ctx.fillRect(
+          offsetX + canvasX * pixelSize,
+          offsetY + canvasY * pixelSize,
+          pixelSize,
+          pixelSize
+      );
+
+      ctx.restore();
+
+      mousePixel.current = { x: canvasX, y: canvasY };
+    } else {
+      mousePixel.current = null;
+    }
+  };
 
   const handleCanvasClick = async (e) => {
     e.preventDefault();
@@ -313,71 +354,144 @@ function App() {
     }
   };
 
-  // Ajout d'une gestion pour l'interaction tactile
+  // Ajout des écouteurs d'événements
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+    };
+  }, [scale, translatePos, containerSize]);
+
+  // Gestion du pinch-to-zoom sur les appareils tactiles
+  const lastPinchDistanceRef = useRef(0);
+  const pinchCenterRef = useRef({ x: 0, y: 0 });
+
   const handleTouchStart = (e) => {
     if (e.touches.length === 2) {
       // Mode pinch-to-zoom
       const touch1 = e.touches[0];
       const touch2 = e.touches[1];
+
+      // Calculer la distance initiale
       const distance = Math.hypot(
           touch1.clientX - touch2.clientX,
           touch1.clientY - touch2.clientY
       );
       lastPinchDistanceRef.current = distance;
+
+      // Calculer le centre du pinch
+      const centerX = (touch1.clientX + touch2.clientX) / 2;
+      const centerY = (touch1.clientY + touch2.clientY) / 2;
+
+      const rect = containerRef.current.getBoundingClientRect();
+      pinchCenterRef.current = {
+        x: centerX - rect.left,
+        y: centerY - rect.top
+      };
+    } else if (e.touches.length === 1) {
+      // Mode déplacement
+      setMouseDown(true);
+      startDragOffset.current = {
+        x: e.touches[0].clientX - translatePos.x,
+        y: e.touches[0].clientY - translatePos.y
+      };
     }
   };
-
-  const lastPinchDistanceRef = useRef(0);
 
   const handleTouchMove = (e) => {
     if (e.touches.length === 2) {
       // Gestion du pinch-to-zoom
       const touch1 = e.touches[0];
       const touch2 = e.touches[1];
+
+      // Calculer la nouvelle distance
       const distance = Math.hypot(
           touch1.clientX - touch2.clientX,
           touch1.clientY - touch2.clientY
       );
 
-      const container = scrollContainerRef.current;
-      if (!container) return;
-
-      // Centre du pinch
-      const centerX = (touch1.clientX + touch2.clientX) / 2;
-      const centerY = (touch1.clientY + touch2.clientY) / 2;
-
-      // Position relative au conteneur
-      const rect = container.getBoundingClientRect();
-      const mouseX = centerX - rect.left;
-      const mouseY = centerY - rect.top;
-
-      // Position dans le contenu défilant
-      const viewportX = mouseX + container.scrollLeft;
-      const viewportY = mouseY + container.scrollTop;
-
-      // Calculer le changement de zoom basé sur la différence de distance
       if (lastPinchDistanceRef.current > 0) {
-        const delta = distance - lastPinchDistanceRef.current;
-        const zoomDelta = delta * 0.01; // Ajuster la sensibilité
+        // Calculer le ratio du pinch
+        const scaleFactor = distance / lastPinchDistanceRef.current;
+        const newScale = Math.min(Math.max(scale * scaleFactor, 1), 20);
 
-        // Calculer le nouveau zoom
-        const newZoom = Math.min(Math.max(zoom + zoomDelta, 1), 10);
+        // Mettre à jour le zoom en conservant le centre du pinch
+        const center = pinchCenterRef.current;
+        const newTranslatePos = {
+          x: center.x - (center.x - translatePos.x) * (newScale / scale),
+          y: center.y - (center.y - translatePos.y) * (newScale / scale)
+        };
 
-        // Mettre à jour le zoom
-        if (newZoom !== zoom) {
-          const zoomRatio = newZoom / zoom;
-          setZoom(newZoom);
-
-          // Ajuster le défilement pour maintenir le centre du pinch
-          container.scrollLeft = viewportX * zoomRatio - mouseX;
-          container.scrollTop = viewportY * zoomRatio - mouseY;
-        }
+        setScale(newScale);
+        // Appliquer la limite de déplacement dynamique
+        setTranslatePos(clampTranslatePos(newTranslatePos));
       }
 
       lastPinchDistanceRef.current = distance;
+    } else if (e.touches.length === 1 && mouseDown) {
+      // Gestion du déplacement
+      const newTranslatePos = {
+        x: e.touches[0].clientX - startDragOffset.current.x,
+        y: e.touches[0].clientY - startDragOffset.current.y
+      };
+      // Appliquer la limite de déplacement dynamique
+      setTranslatePos(clampTranslatePos(newTranslatePos));
     }
   };
 
+  const handleTouchEnd = () => {
+    setMouseDown(false);
+    lastPinchDistanceRef.current = 0;
+  };
+
+  // Fonction pour recentrer le canvas
+  const resetCanvasPosition = () => {
+    setScale(1.0);
+    setTranslatePos({
+      x: containerSize.width / 2,
+      y: containerSize.height / 2
+    });
+  };
+
+  // Ajouter des indicateurs visuels pour les limites de déplacement
+  const renderPanLimits = () => {
+    if (!ctx || !canvasRef.current) return;
+
+    // Calculer les limites actuelles
+    const pixelSize = Math.max(1, Math.min(
+        containerSize.width / GRID_WIDTH,
+        containerSize.height / GRID_HEIGHT
+    )) * scale;
+
+    const effectiveCanvasWidth = GRID_WIDTH * pixelSize;
+    const effectiveCanvasHeight = GRID_HEIGHT * pixelSize;
+
+    const centerX = containerSize.width / 2;
+    const centerY = containerSize.height / 2;
+
+    const maxOffsetX = Math.max(effectiveCanvasWidth / 2, containerSize.width / 2 + BASE_PAN_LIMIT * scale);
+    const maxOffsetY = Math.max(effectiveCanvasHeight / 2, containerSize.height / 2 + BASE_PAN_LIMIT * scale);
+
+    // Dessiner les limites (optionnel, pour le débogage)
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 0, 0, 0.3)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.rect(
+        centerX - maxOffsetX,
+        centerY - maxOffsetY,
+        maxOffsetX * 2,
+        maxOffsetY * 2
+    );
+    ctx.stroke();
+    ctx.restore();
+  };
+
+  // Interface utilisateur
   return (
       <div className="App">
         <h1>Pixel War Canvas</h1>
@@ -396,40 +510,59 @@ function App() {
                   selectedColor={selectedColor}
               />
             </div>
+            <div className="canvas-controls">
+              <div className="zoom-controls">
+                <button onClick={() => {
+                  const newScale = Math.min(scale * 1.2, 20);
+                  setScale(newScale);
+                  // Recalculer les limites après le zoom
+                  setTranslatePos(clampTranslatePos(translatePos));
+                }}>+</button>
+                <button onClick={() => {
+                  const newScale = Math.max(scale / 1.2, 1);
+                  setScale(newScale);
+                  // Recalculer les limites après le zoom
+                  setTranslatePos(clampTranslatePos(translatePos));
+                }}>-</button>
+                <button onClick={resetCanvasPosition} title="Recentrer le canvas">
+                  ⟳
+                </button>
+              </div>
+            </div>
             <div
-                ref={scrollContainerRef}
-                className="scroll-container"
+                ref={containerRef}
                 style={{
-                  overflow: 'auto',
+                  position: 'relative',
                   width: '600px',
                   height: '600px',
-                  WebkitOverflowScrolling: 'touch', // Pour un défilement fluide sur iOS
+                  overflow: 'hidden',
+                  touchAction: 'none', // Désactiver les gestes tactiles par défaut
                 }}
+                onMouseDown={handleMouseDown}
+                onMouseUp={handleMouseUp}
+                onMouseOut={handleMouseUp}
+                onMouseMove={handleMouseMove}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                onClick={handleCanvasClick}
             >
-              <div
+              <canvas
+                  ref={canvasRef}
+                  className="pixel-canvas"
+                  onContextMenu={(e) => e.preventDefault()}
                   style={{
-                    transform: `scale(${zoom})`,
-                    transformOrigin: 'top left',
-                    width: 'fit-content',
-                    willChange: 'transform', // Optimisation pour les animations
+                    cursor: selectedColor === null ? 'crosshair' : 'none',
+                    imageRendering: 'pixelated',
+                    position: 'absolute',
+                    width: '100%',
+                    height: '100%',
+                    transformOrigin: 'center',
                   }}
-              >
-                <canvas
-                    ref={canvasRef}
-                    width={200}
-                    height={200}
-                    className="pixel-canvas"
-                    style={{
-                      cursor: selectedColor === null ? 'crosshair' : 'none',
-                      imageRendering: 'pixelated',
-                      width: '600px',
-                      height: '600px',
-                    }}
-                    onClick={handleCanvasClick}
-                />
-              </div>
+              />
+            </div>
+            <div className="zoom-info" style={{color: "white"}}>
+              Zoom: {Math.round(scale * 100)}%
             </div>
           </div>
         </div>
