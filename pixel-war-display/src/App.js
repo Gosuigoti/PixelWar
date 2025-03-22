@@ -38,7 +38,7 @@ const Toast = ({ message, type, onClose }) => {
         <div className="toast-content">
           <span>{message}</span>
         </div>
-        <button className="toast-close" onClick={onClose}>&times;</button>
+        <button className="toast-close" onClick={onClose}>×</button>
       </div>
   );
 };
@@ -131,21 +131,19 @@ function App() {
   }, [containerSize]);
 
   useEffect(() => {
-    let isActive = true; // Garde référence si cet effet est toujours actif
-
+    let isActive = true;
     const ws = new WebSocket('wss://eclipse-pixel-war.xyz/ws');
     wsRef.current = ws;
 
     ws.onopen = () => {
-      if (isActive) { // Vérifier si l'effet est toujours actif
+      if (isActive) {
         console.log('Connected to the server WebSocket');
         addToast('Connected to the server', 'success');
       }
     };
 
     ws.onmessage = (event) => {
-      if (!isActive) return; // Ne pas traiter si l'effet n'est plus actif
-
+      if (!isActive) return;
       const message = JSON.parse(event.data);
       if (message.type === 'init') {
         setCanvasData(message.data);
@@ -162,7 +160,7 @@ function App() {
     };
 
     ws.onclose = () => {
-      if (isActive) { // Ne pas montrer de toasts si nous nettoyons l'effet
+      if (isActive) {
         console.log('Disconnected from the server WebSocket');
         addToast('Disconnected from the server', 'error');
       }
@@ -170,30 +168,31 @@ function App() {
 
     ws.onerror = (error) => {
       if (isActive) {
-        console.error('Erreur WebSocket:', error);
+        console.error('WebSocket error:', error);
         addToast('Server connection error', 'error');
       }
     };
 
-    // Ce code s'exécute lors du démontage du composant
+    // Ajouter un heartbeat toutes les 30 secondes
+    const heartbeatInterval = setInterval(() => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'ping' })); // Message ping simple
+      }
+    }, 30000); // 30 secondes
+
     return () => {
-      isActive = false; // Marquer l'effet comme inactif
-
-      // Stocker une référence à la socket avant de la fermer
+      isActive = false;
+      clearInterval(heartbeatInterval);
       const socket = wsRef.current;
-
-      // Si nous sommes en train de nettoyer lors du double rendu initial, ne fermons pas la socket
       if (process.env.NODE_ENV === 'development') {
-        // En dev, on garde la WebSocket ouverte pour éviter le problème de double rendu
-        wsRef.current = null; // Détacher la référence sans fermer
+        wsRef.current = null;
       } else {
-        // En production, fermer proprement
         if (socket && socket.readyState !== WebSocket.CLOSED) {
           socket.close();
         }
       }
     };
-  }, []); // Tableau de dépendances vide pour s'exécuter une seule fois
+  }, []);
 
   const clampTranslatePos = (pos) => {
     const basePixelSize = Math.min(containerSize.width / GRID_WIDTH, containerSize.height / GRID_HEIGHT);
@@ -235,33 +234,36 @@ function App() {
 
     const basePixelSize = Math.min(containerSize.width / GRID_WIDTH, containerSize.height / GRID_HEIGHT);
     const pixelSize = basePixelSize * scale;
-    const effectiveWidth = GRID_WIDTH * pixelSize;
-    const effectiveHeight = GRID_HEIGHT * pixelSize;
+    const effectiveWidth = Math.round(GRID_WIDTH * pixelSize); // Arrondir pour cohérence
+    const effectiveHeight = Math.round(GRID_HEIGHT * pixelSize);
 
-    ctx.save();
-    ctx.translate(containerSize.width / 2 + translatePos.x, containerSize.height / 2 + translatePos.y);
+    // Centrer le rendu
+    const offsetX = Math.round(containerSize.width / 2 + translatePos.x - effectiveWidth / 2);
+    const offsetY = Math.round(containerSize.height / 2 + translatePos.y - effectiveHeight / 2);
+
     ctx.drawImage(
         offscreenCanvasRef.current,
         0,
         0,
         GRID_WIDTH,
         GRID_HEIGHT,
-        -effectiveWidth / 2,
-        -effectiveHeight / 2,
+        offsetX,
+        offsetY,
         effectiveWidth,
         effectiveHeight
     );
 
     if (selectedColor !== null && previewX !== null && previewY !== null) {
       ctx.fillStyle = COLORS[selectedColor];
-      // Utiliser des positions et tailles entières pour un alignement parfait
-      const previewPosX = Math.floor(-effectiveWidth / 2 + previewX * pixelSize);
-      const previewPosY = Math.floor(-effectiveHeight / 2 + previewY * pixelSize);
-      const previewSize = Math.ceil(pixelSize); // S'assurer que la taille couvre bien le pixel
-      ctx.fillRect(previewPosX, previewPosY, previewSize, previewSize);
+      const previewPosX = offsetX + previewX * pixelSize;
+      const previewPosY = offsetY + previewY * pixelSize;
+      ctx.fillRect(
+          Math.round(previewPosX),  // Aligner précisément avec les pixels rendus
+          Math.round(previewPosY),
+          Math.round(pixelSize),   // Taille cohérente avec le rendu
+          Math.round(pixelSize)
+      );
     }
-
-    ctx.restore();
   };
 
   useEffect(() => {
@@ -321,7 +323,7 @@ function App() {
       return;
     }
 
-    if (!selectedColor || !canvasRef.current || !isLoaded) return;
+    if (selectedColor === null || !canvasRef.current || !isLoaded) return;
 
     const rect = containerRef.current.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
@@ -329,11 +331,13 @@ function App() {
 
     const basePixelSize = Math.min(containerSize.width / GRID_WIDTH, containerSize.height / GRID_HEIGHT);
     const pixelSize = basePixelSize * scale;
-    const effectiveWidth = GRID_WIDTH * pixelSize;
-    const effectiveHeight = GRID_HEIGHT * pixelSize;
+    const effectiveWidth = Math.round(GRID_WIDTH * pixelSize);
+    const effectiveHeight = Math.round(GRID_HEIGHT * pixelSize);
+    const offsetX = Math.round(containerSize.width / 2 + translatePos.x - effectiveWidth / 2);
+    const offsetY = Math.round(containerSize.height / 2 + translatePos.y - effectiveHeight / 2);
 
-    const canvasX = Math.floor((mouseX - (containerSize.width / 2 + translatePos.x) + effectiveWidth / 2) / pixelSize);
-    const canvasY = Math.floor((mouseY - (containerSize.height / 2 + translatePos.y) + effectiveHeight / 2) / pixelSize);
+    const canvasX = Math.floor((mouseX - offsetX) / pixelSize);
+    const canvasY = Math.floor((mouseY - offsetY) / pixelSize);
 
     if (canvasX >= 0 && canvasY >= 0 && canvasX < GRID_WIDTH && canvasY < GRID_HEIGHT) {
       if (!mousePixel.current || mousePixel.current.x !== canvasX || mousePixel.current.y !== canvasY) {
@@ -428,7 +432,7 @@ function App() {
       setCanvasData(newCanvas);
       addToast('Pixel added successfully', 'success');
     } catch (error) {
-      console.warn('Transaction error :', error);
+      console.warn('Transaction error:', error);
       addToast(`Error: ${error.message || 'Transaction failed'}`, 'error');
     }
   };
@@ -519,12 +523,12 @@ function App() {
 
   return (
       <div className="App">
-        <h1>Pixel War Canvas</h1>
+        <h1>Eclipse Pixel War</h1>
         <div className="wallet-section">
           <WalletMultiButton />
         </div>
         <div className="canvas-controls">
-          <div className="zoom-info" style={{color: "white", marginBottom: "10px"}}>
+          <div className="zoom-info" style={{ color: "white", marginBottom: "10px" }}>
             Zoom: {Math.round(scale * 100)}%
           </div>
           <div className="zoom-controls">
@@ -587,8 +591,6 @@ function App() {
             </div>
           </div>
         </div>
-
-        {/* Toast container */}
         <ToastContainer toasts={toasts} removeToast={removeToast} />
       </div>
   );
