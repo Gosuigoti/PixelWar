@@ -41,6 +41,7 @@ function App() {
   const [translatePos, setTranslatePos] = useState({ x: 0, y: 0 });
   const [mouseDown, setMouseDown] = useState(false);
   const startDragOffset = useRef({ x: 0, y: 0 });
+  const rafId = useRef(null);
 
   useEffect(() => {
     offscreenCanvasRef.current = document.createElement('canvas');
@@ -132,7 +133,7 @@ function App() {
     }
   };
 
-  const drawCanvas = () => {
+  const drawCanvas = (previewX = null, previewY = null) => {
     if (!canvasRef.current || !isLoaded || !canvasData) return;
 
     const canvas = canvasRef.current;
@@ -141,11 +142,8 @@ function App() {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    drawOffscreenCanvas();
-
     const basePixelSize = Math.min(containerSize.width / GRID_WIDTH, containerSize.height / GRID_HEIGHT);
     const pixelSize = basePixelSize * scale;
-
     const effectiveWidth = GRID_WIDTH * pixelSize;
     const effectiveHeight = GRID_HEIGHT * pixelSize;
 
@@ -162,12 +160,27 @@ function App() {
         effectiveWidth,
         effectiveHeight
     );
+
+    if (selectedColor !== null && previewX !== null && previewY !== null) {
+      ctx.fillStyle = COLORS[selectedColor];
+      // Utiliser des positions et tailles entières pour un alignement parfait
+      const previewPosX = Math.floor(-effectiveWidth / 2 + previewX * pixelSize);
+      const previewPosY = Math.floor(-effectiveHeight / 2 + previewY * pixelSize);
+      const previewSize = Math.ceil(pixelSize); // S'assurer que la taille couvre bien le pixel
+      ctx.fillRect(previewPosX, previewPosY, previewSize, previewSize);
+    }
+
     ctx.restore();
   };
 
   useEffect(() => {
+    drawOffscreenCanvas();
     drawCanvas();
-  }, [canvasData, isLoaded, scale, translatePos, containerSize]);
+  }, [canvasData, isLoaded]);
+
+  useEffect(() => {
+    drawCanvas(mousePixel.current?.x, mousePixel.current?.y);
+  }, [scale, translatePos, containerSize]);
 
   const handleWheel = (e) => {
     e.preventDefault();
@@ -178,11 +191,9 @@ function App() {
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    // Position de la souris par rapport au centre du canvas dans l'espace actuel
     const mouseCanvasX = mouseX - (containerSize.width / 2 + translatePos.x);
     const mouseCanvasY = mouseY - (containerSize.height / 2 + translatePos.y);
 
-    // Ajuster la translation pour garder la souris au même endroit après le zoom
     const newTranslatePos = {
       x: translatePos.x + mouseCanvasX * (1 - newScale / scale),
       y: translatePos.y + mouseCanvasY * (1 - newScale / scale)
@@ -200,7 +211,14 @@ function App() {
     };
   };
 
-  const handleMouseUp = () => setMouseDown(false);
+  const handleMouseUp = () => {
+    setMouseDown(false);
+    if (rafId.current) {
+      cancelAnimationFrame(rafId.current);
+      rafId.current = null;
+    }
+    drawCanvas(mousePixel.current?.x, mousePixel.current?.y);
+  };
 
   const handleMouseMove = (e) => {
     if (mouseDown) {
@@ -209,42 +227,41 @@ function App() {
         y: e.clientY - startDragOffset.current.y
       };
       setTranslatePos(clampTranslatePos(newTranslatePos));
+      return;
     }
 
     if (!selectedColor || !canvasRef.current || !isLoaded) return;
-    const ctx = canvasRef.current.getContext('2d');
+
     const rect = containerRef.current.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
     const basePixelSize = Math.min(containerSize.width / GRID_WIDTH, containerSize.height / GRID_HEIGHT);
     const pixelSize = basePixelSize * scale;
-
     const effectiveWidth = GRID_WIDTH * pixelSize;
     const effectiveHeight = GRID_HEIGHT * pixelSize;
 
     const canvasX = Math.floor((mouseX - (containerSize.width / 2 + translatePos.x) + effectiveWidth / 2) / pixelSize);
     const canvasY = Math.floor((mouseY - (containerSize.height / 2 + translatePos.y) + effectiveHeight / 2) / pixelSize);
 
-    if (mousePixel.current && (mousePixel.current.x !== canvasX || mousePixel.current.y !== canvasY)) {
-      drawCanvas();
-    }
-
     if (canvasX >= 0 && canvasY >= 0 && canvasX < GRID_WIDTH && canvasY < GRID_HEIGHT) {
-      ctx.save();
-      ctx.translate(containerSize.width / 2 + translatePos.x, containerSize.height / 2 + translatePos.y);
-      ctx.fillStyle = COLORS[selectedColor];
-      ctx.fillRect(
-          -effectiveWidth / 2 + canvasX * pixelSize,
-          -effectiveHeight / 2 + canvasY * pixelSize,
-          pixelSize,
-          pixelSize
-      );
-      ctx.restore();
-
-      mousePixel.current = { x: canvasX, y: canvasY };
-    } else {
+      if (!mousePixel.current || mousePixel.current.x !== canvasX || mousePixel.current.y !== canvasY) {
+        mousePixel.current = { x: canvasX, y: canvasY };
+        if (!rafId.current) {
+          rafId.current = requestAnimationFrame(() => {
+            drawCanvas(canvasX, canvasY);
+            rafId.current = null;
+          });
+        }
+      }
+    } else if (mousePixel.current) {
       mousePixel.current = null;
+      if (!rafId.current) {
+        rafId.current = requestAnimationFrame(() => {
+          drawCanvas();
+          rafId.current = null;
+        });
+      }
     }
   };
 
@@ -370,6 +387,11 @@ function App() {
   const handleTouchEnd = () => {
     setMouseDown(false);
     lastPinchDistanceRef.current = 0;
+    if (rafId.current) {
+      cancelAnimationFrame(rafId.current);
+      rafId.current = null;
+    }
+    drawCanvas(mousePixel.current?.x, mousePixel.current?.y);
   };
 
   const resetCanvasPosition = () => {
