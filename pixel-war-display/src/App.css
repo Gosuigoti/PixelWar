@@ -12,6 +12,8 @@
   font-family: monospace;
   color: #a0fea0;
 }.wallet-section {
+  display: flex;
+  flex-direction: row;
   margin-bottom: 60px;
   height: 10px;
 }canvas {
@@ -83,4 +85,60 @@
 /* Au hover */
 .scroll-container::-webkit-scrollbar-thumb:hover {
   background: #555;
+}
+
+.canvas-controls {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Styles pour les contrôles de zoom */
+.zoom-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: rgba(255, 255, 255, 0.8);
+  padding: 8px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Styles pour les boutons */
+.zoom-controls button {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: bold;
+  background-color: #512da8;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+/* Effet de survol */
+.zoom-controls button:hover {
+  background-color: #e0e0e0;
+  transform: translateY(-2px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Effet d'appui */
+.zoom-controls button:active {
+  background-color: #d0d0d0;
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+/* Focus visible */
+.zoom-controls button:focus {
+  outline: 2px solid #4a90e2;
+  outline-offset: 2px;
 }

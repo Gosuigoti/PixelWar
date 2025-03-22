@@ -383,6 +383,24 @@ function App() {
         <div className="wallet-section">
           <WalletMultiButton />
         </div>
+        <div className="canvas-controls">
+          <div className="zoom-info" style={{color: "white", marginBottom: "10px"}}>
+            Zoom: {Math.round(scale * 100)}%
+          </div>
+          <div className="zoom-controls">
+            <button onClick={() => {
+              const newScale = Math.min(scale * 1.2, 20);
+              setScale(newScale);
+              setTranslatePos(clampTranslatePos(translatePos));
+            }}>+</button>
+            <button onClick={() => {
+              const newScale = Math.max(scale / 1.2, 1);
+              setScale(newScale);
+              setTranslatePos(clampTranslatePos(translatePos));
+            }}>-</button>
+            <button onClick={resetCanvasPosition} title="Recentrer le canvas">⟳</button>
+          </div>
+        </div>
         <div style={{ display: !isLoaded ? "block" : "none" }}>
           <h1>Chargement...</h1>
         </div>
@@ -394,21 +412,6 @@ function App() {
                   onSelect={(color) => setSelectedColor(color)}
                   selectedColor={selectedColor}
               />
-            </div>
-            <div className="canvas-controls">
-              <div className="zoom-controls">
-                <button onClick={() => {
-                  const newScale = Math.min(scale * 1.2, 20);
-                  setScale(newScale);
-                  setTranslatePos(clampTranslatePos(translatePos));
-                }}>+</button>
-                <button onClick={() => {
-                  const newScale = Math.max(scale / 1.2, 1);
-                  setScale(newScale);
-                  setTranslatePos(clampTranslatePos(translatePos));
-                }}>-</button>
-                <button onClick={resetCanvasPosition} title="Recentrer le canvas">⟳</button>
-              </div>
             </div>
             <div
                 ref={containerRef}
@@ -441,9 +444,6 @@ function App() {
                     transformOrigin: 'center',
                   }}
               />
-            </div>
-            <div className="zoom-info" style={{color: "white"}}>
-              Zoom: {Math.round(scale * 100)}%
             </div>
           </div>
         </div>
