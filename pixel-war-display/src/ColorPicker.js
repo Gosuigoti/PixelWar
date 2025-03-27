@@ -1,4 +1,5 @@
 import React from 'react';
+import './ColorPicker.css';
 
 const ColorPicker = ({ colors, onSelect, selectedColor }) => {
   return (
@@ -6,14 +7,8 @@ const ColorPicker = ({ colors, onSelect, selectedColor }) => {
       {colors.map((color, index) => (
         <div
           key={index}
-          style={{
-            backgroundColor: color,
-            width: '20px',
-            height: '20px',
-            margin: '5px',
-            border: index === selectedColor ? '2px solid black' : '1px solid gray',
-            cursor: 'pointer',
-          }}
+          className={`color-swatch ${selectedColor === index ? 'selected' : ''}`}
+          style={{ backgroundColor: color }}
           onClick={() => onSelect(index)}
         />
       ))}

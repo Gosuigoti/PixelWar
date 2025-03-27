@@ -11,7 +11,7 @@ const PROGRAM_ID = new PublicKey('FtcPZ5sAdSfE8K9suZ98xnhXBBgpnpHXGVu44wXzdtbL')
 const CLUSTER_URL = 'https://staging-rpc.dev2.eclipsenetwork.xyz';
 const WS_URL = 'ws://localhost:8080';
 
-// Palette de couleurs (0-15)
+// Palette de couleurs prédéfinie (0-15) - Compatible avec le smart contract
 const COLORS = [
   '#FFFFFF', '#000000', '#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF',
   '#808080', '#800000', '#008000', '#000080', '#FFA500', '#800080', '#C0C0C0', '#FFD700'
@@ -24,6 +24,15 @@ const GRID_HEIGHT = 200;
 // Facteur de base pour la limite de déplacement
 const BASE_PAN_LIMIT = 100;
 
+// Utility function to debounce a callback
+const debounce = (func, wait) => {
+  let timeout;
+  return (...args) => {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
+  };
+};
+
 // Toast component
 const Toast = ({ message, type, onClose }) => {
   useEffect(() => {
@@ -34,28 +43,28 @@ const Toast = ({ message, type, onClose }) => {
   }, [onClose]);
 
   return (
-      <div className={`toast toast-${type}`}>
-        <div className="toast-content">
-          <span>{message}</span>
-        </div>
-        <button className="toast-close" onClick={onClose}>×</button>
+    <div className={`toast toast-${type}`}>
+      <div className="toast-content">
+        <span>{message}</span>
       </div>
+      <button className="toast-close" onClick={onClose}>×</button>
+    </div>
   );
 };
 
 // ToastContainer component
 const ToastContainer = ({ toasts, removeToast }) => {
   return (
-      <div className="toast-container">
-        {toasts.map((toast) => (
-            <Toast
-                key={toast.id}
-                message={toast.message}
-                type={toast.type}
-                onClose={() => removeToast(toast.id)}
-            />
-        ))}
-      </div>
+    <div className="toast-container">
+      {toasts.map((toast) => (
+        <Toast
+          key={toast.id}
+          message={toast.message}
+          type={toast.type}
+          onClose={() => removeToast(toast.id)}
+        />
+      ))}
+    </div>
   );
 };
 
@@ -70,7 +79,9 @@ function App() {
   const mousePixel = useRef(null);
   const wsRef = useRef(null);
   const containerRef = useRef(null);
+  const colorPickerContainerRef = useRef(null);
   const [containerSize, setContainerSize] = useState({ width: 600, height: 600 });
+  const [colorPickerWidth, setColorPickerWidth] = useState(600);
 
   const [scale, setScale] = useState(1.0);
   const [translatePos, setTranslatePos] = useState({ x: 0, y: 0 });
@@ -106,27 +117,41 @@ function App() {
       const container = containerRef.current;
       if (container) {
         const { width, height } = container.getBoundingClientRect();
+        console.log('Container size updated:', { width: width.toFixed(2), height: height.toFixed(2) });
         setContainerSize({ width, height });
+        setColorPickerWidth(width);
         setTranslatePos({ x: 0, y: 0 });
       }
     };
 
+    const debouncedUpdateContainerSize = debounce(updateContainerSize, 100);
+
     updateContainerSize();
-    const resizeObserver = new ResizeObserver(updateContainerSize);
+    const resizeObserver = new ResizeObserver(debouncedUpdateContainerSize);
     resizeObserver.observe(containerRef.current);
 
     return () => {
       if (containerRef.current) {
         resizeObserver.unobserve(containerRef.current);
+        resizeObserver.disconnect();
       }
     };
   }, []);
 
   useEffect(() => {
+    if (colorPickerContainerRef.current) {
+      colorPickerContainerRef.current.style.width = `${colorPickerWidth}px`;
+    }
+  }, [colorPickerWidth]);
+
+  useEffect(() => {
     if (canvasRef.current) {
       canvasRef.current.width = containerSize.width;
       canvasRef.current.height = containerSize.height;
+      console.log('Canvas dimensions set:', { width: containerSize.width.toFixed(2), height: containerSize.height.toFixed(2) });
       drawCanvas();
+    } else {
+      console.log('Canvas ref is null');
     }
   }, [containerSize]);
 
@@ -145,10 +170,11 @@ function App() {
     ws.onmessage = (event) => {
       if (!isActive) return;
       const message = JSON.parse(event.data);
+      console.log('WebSocket message received:', message);
       if (message.type === 'init') {
         setCanvasData(message.data);
         setLoaded(true);
-        addToast('Canvas successfully loaded', 'success');
+        console.log('Canvas data loaded, isLoaded set to true', { canvasData: message.data });
       } else if (message.type === 'update') {
         const { x, y, color } = message.data;
         setCanvasData(prev => {
@@ -173,12 +199,11 @@ function App() {
       }
     };
 
-    // Ajouter un heartbeat toutes les 30 secondes
     const heartbeatInterval = setInterval(() => {
       if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'ping' })); // Message ping simple
+        ws.send(JSON.stringify({ type: 'ping' }));
       }
-    }, 30000); // 30 secondes
+    }, 30000);
 
     return () => {
       isActive = false;
@@ -200,8 +225,8 @@ function App() {
     const effectiveCanvasWidth = GRID_WIDTH * pixelSize;
     const effectiveCanvasHeight = GRID_HEIGHT * pixelSize;
 
-    const maxOffsetX = (effectiveCanvasWidth - containerSize.width) / 2 + BASE_PAN_LIMIT * scale;
-    const maxOffsetY = (effectiveCanvasHeight - containerSize.height) / 2 + BASE_PAN_LIMIT * scale;
+    const maxOffsetX = Math.max(0, (effectiveCanvasWidth - containerSize.width) / 2);
+    const maxOffsetY = Math.max(0, (effectiveCanvasHeight - containerSize.height) / 2);
 
     return {
       x: Math.min(Math.max(pos.x, -maxOffsetX), maxOffsetX),
@@ -210,21 +235,28 @@ function App() {
   };
 
   const drawOffscreenCanvas = () => {
-    if (!offscreenCanvasRef.current || !canvasData) return;
+    if (!offscreenCanvasRef.current || !canvasData) {
+      console.log('Cannot draw offscreen canvas:', { offscreenCanvas: !!offscreenCanvasRef.current, canvasData: !!canvasData });
+      return;
+    }
 
     const offscreenCtx = offscreenCanvasRef.current.getContext('2d');
     offscreenCtx.imageSmoothingEnabled = false;
 
     for (let x = 0; x < GRID_WIDTH; x++) {
       for (let y = 0; y < GRID_HEIGHT; y++) {
-        offscreenCtx.fillStyle = COLORS[canvasData[x][y]];
+        offscreenCtx.fillStyle = COLORS[canvasData[x][y]] || '#FFFFFF';
         offscreenCtx.fillRect(x, y, 1, 1);
       }
     }
+    console.log('Offscreen canvas drawn');
   };
 
   const drawCanvas = (previewX = null, previewY = null) => {
-    if (!canvasRef.current || !isLoaded || !canvasData) return;
+    if (!canvasRef.current || !isLoaded || !canvasData) {
+      console.log('Cannot draw canvas:', { canvasRef: !!canvasRef.current, isLoaded, canvasData: !!canvasData });
+      return;
+    }
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
@@ -234,36 +266,42 @@ function App() {
 
     const basePixelSize = Math.min(containerSize.width / GRID_WIDTH, containerSize.height / GRID_HEIGHT);
     const pixelSize = basePixelSize * scale;
-    const effectiveWidth = Math.round(GRID_WIDTH * pixelSize); // Arrondir pour cohérence
-    const effectiveHeight = Math.round(GRID_HEIGHT * pixelSize);
+    let effectiveWidth = GRID_WIDTH * pixelSize;
+    let effectiveHeight = GRID_HEIGHT * pixelSize;
 
-    // Centrer le rendu
+    if (effectiveWidth < containerSize.width || effectiveHeight < containerSize.height) {
+      const scaleToFit = Math.max(containerSize.width / GRID_WIDTH, containerSize.height / GRID_HEIGHT);
+      effectiveWidth = GRID_WIDTH * scaleToFit * scale;
+      effectiveHeight = GRID_HEIGHT * scaleToFit * scale;
+    }
+
     const offsetX = Math.round(containerSize.width / 2 + translatePos.x - effectiveWidth / 2);
     const offsetY = Math.round(containerSize.height / 2 + translatePos.y - effectiveHeight / 2);
 
     ctx.drawImage(
-        offscreenCanvasRef.current,
-        0,
-        0,
-        GRID_WIDTH,
-        GRID_HEIGHT,
-        offsetX,
-        offsetY,
-        effectiveWidth,
-        effectiveHeight
+      offscreenCanvasRef.current,
+      0,
+      0,
+      GRID_WIDTH,
+      GRID_HEIGHT,
+      offsetX,
+      offsetY,
+      effectiveWidth,
+      effectiveHeight
     );
 
     if (selectedColor !== null && previewX !== null && previewY !== null) {
-      ctx.fillStyle = COLORS[selectedColor];
+      ctx.fillStyle = COLORS[selectedColor] || '#FFFFFF';
       const previewPosX = offsetX + previewX * pixelSize;
       const previewPosY = offsetY + previewY * pixelSize;
       ctx.fillRect(
-          Math.round(previewPosX),  // Aligner précisément avec les pixels rendus
-          Math.round(previewPosY),
-          Math.round(pixelSize),   // Taille cohérente avec le rendu
-          Math.round(pixelSize)
+        Math.round(previewPosX),
+        Math.round(previewPosY),
+        Math.round(pixelSize),
+        Math.round(pixelSize)
       );
     }
+    console.log('Canvas drawn successfully');
   };
 
   useEffect(() => {
@@ -278,7 +316,7 @@ function App() {
   const handleWheel = (e) => {
     e.preventDefault();
     const scaleMultiplier = e.deltaY < 0 ? 1.1 : 0.9;
-    const newScale = Math.min(Math.max(scale * scaleMultiplier, 1), 20);
+    const newScale = Math.min(Math.max(scale * scaleMultiplier, 1), 9); // Limiter à 900% (facteur 9)
 
     const rect = containerRef.current.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
@@ -313,6 +351,16 @@ function App() {
     drawCanvas(mousePixel.current?.x, mousePixel.current?.y);
   };
 
+  const handleMouseOut = () => {
+    setMouseDown(false);
+    mousePixel.current = null; // Réinitialiser la position de la souris
+    if (rafId.current) {
+      cancelAnimationFrame(rafId.current);
+      rafId.current = null;
+    }
+    drawCanvas(); // Redessiner le canvas sans prévisualisation
+  };
+
   const handleMouseMove = (e) => {
     if (mouseDown) {
       const newTranslatePos = {
@@ -323,7 +371,7 @@ function App() {
       return;
     }
 
-    if (selectedColor === null || !canvasRef.current || !isLoaded) return;
+    if (!canvasRef.current || !isLoaded) return;
 
     const rect = containerRef.current.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
@@ -389,6 +437,13 @@ function App() {
     const selectedPixel = mousePixel.current;
     if (!selectedPixel || !publicKey) return;
 
+    const balance = await connection.getBalance(publicKey);
+    console.log('Wallet balance:', balance / 1e9, 'SOL');
+    if (balance < 5000) {
+      addToast('Insufficient funds in wallet. Please add SOL to your wallet.', 'error');
+      return;
+    }
+
     const quadrant = Math.floor(selectedPixel.x / 100) + Math.floor(selectedPixel.y / 100) * 2;
     const subX = Math.floor((selectedPixel.x % 100) / 10);
     const subY = Math.floor((selectedPixel.y % 100) / 10);
@@ -396,8 +451,8 @@ function App() {
     const pixelY = selectedPixel.y % 10;
 
     const [subsectionPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from('subsection'), Buffer.from([quadrant]), Buffer.from([subX]), Buffer.from([subY])],
-        PROGRAM_ID
+      [Buffer.from('subsection'), Buffer.from([quadrant]), Buffer.from([subX]), Buffer.from([subY])],
+      PROGRAM_ID
     );
 
     const recipientPubkey = new PublicKey('EiogKSRa3tQJXyFrQqecc5z8DHNwjAn8pdR61yTKdLaP');
@@ -410,6 +465,28 @@ function App() {
     data.writeUInt8(pixel.x, 12);
     data.writeUInt8(pixel.y, 13);
     data.writeUInt8(pixel.color, 14);
+
+    console.log('Transaction details:', {
+      selectedPixel: { x: selectedPixel.x, y: selectedPixel.y },
+      quadrant,
+      subX,
+      subY,
+      pixelX,
+      pixelY,
+      subsectionPda: subsectionPda.toBase58(),
+      publicKey: publicKey.toBase58(),
+      recipientPubkey: recipientPubkey.toBase58(),
+      programId: PROGRAM_ID.toBase58(),
+      data: data.toString('hex'),
+      selectedColor
+    });
+
+    const subsectionAccountInfo = await connection.getAccountInfo(subsectionPda);
+    if (!subsectionAccountInfo) {
+      addToast('Subsection account does not exist. It may need to be initialized.', 'error');
+      console.log('Subsection PDA does not exist:', subsectionPda.toBase58());
+      return;
+    }
 
     const drawPixelsIx = new TransactionInstruction({
       keys: [
@@ -476,7 +553,7 @@ function App() {
 
       if (lastPinchDistanceRef.current > 0) {
         const scaleFactor = distance / lastPinchDistanceRef.current;
-        const newScale = Math.min(Math.max(scale * scaleFactor, 1), 20);
+        const newScale = Math.min(Math.max(scale * scaleFactor, 1), 9); // Limiter à 900% (facteur 9)
         const center = pinchCenterRef.current;
 
         const mouseCanvasX = center.x - (containerSize.width / 2 + translatePos.x);
@@ -522,77 +599,71 @@ function App() {
   };
 
   return (
-      <div className="App">
+    <div className="App">
+      <div className="header">
         <h1>Eclipse Pixel War</h1>
-        <div className="wallet-section">
+        <div className="wallet-container">
           <WalletMultiButton />
         </div>
-        <div className="canvas-controls">
-          <div className="zoom-info" style={{ color: "white", marginBottom: "10px" }}>
-            Zoom: {Math.round(scale * 100)}%
-          </div>
-          <div className="zoom-controls">
-            <button onClick={() => {
-              const newScale = Math.min(scale * 1.2, 20);
-              setScale(newScale);
-              setTranslatePos(clampTranslatePos(translatePos));
-            }}>+</button>
-            <button onClick={() => {
-              const newScale = Math.max(scale / 1.2, 1);
-              setScale(newScale);
-              setTranslatePos(clampTranslatePos(translatePos));
-            }}>-</button>
-            <button onClick={resetCanvasPosition} title="Recentrer le canvas">⟳</button>
-          </div>
-        </div>
+      </div>
+      <div className="main-content">
         <div style={{ display: !isLoaded ? "block" : "none" }}>
-          <h1>Loading...</h1>
+          <h2>Loading...</h2>
         </div>
-        <div className={isLoaded ? "" : "hidden"}>
-          <div className="canvas-container">
-            <div className="color-picker-container">
-              <ColorPicker
-                  colors={COLORS}
-                  onSelect={handleColorSelect}
-                  selectedColor={selectedColor}
-              />
-            </div>
-            <div
+        <div style={{ display: isLoaded ? "block" : "none" }} className="game-container">
+          <div className="canvas-and-controls">
+            <div className="canvas-wrapper">
+              <div className="top-bar">
+                <div className="color-picker-container" ref={colorPickerContainerRef}>
+                  <ColorPicker
+                    colors={COLORS}
+                    onSelect={handleColorSelect}
+                    selectedColor={selectedColor}
+                  />
+                </div>
+              </div>
+              <div
                 ref={containerRef}
-                style={{
-                  position: 'relative',
-                  width: '600px',
-                  height: '600px',
-                  overflow: 'hidden',
-                  touchAction: 'none',
-                }}
+                className="canvas-container"
                 onMouseDown={handleMouseDown}
                 onMouseUp={handleMouseUp}
-                onMouseOut={handleMouseUp}
+                onMouseOut={handleMouseOut} // Utiliser handleMouseOut pour gérer la sortie
                 onMouseMove={handleMouseMove}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
                 onClick={handleCanvasClick}
-            >
-              <canvas
+              >
+                <canvas
                   ref={canvasRef}
-                  className="pixel-canvas"
+                  className={`pixel-canvas ${selectedColor === null ? 'crosshair' : ''}`}
                   onContextMenu={(e) => e.preventDefault()}
-                  style={{
-                    cursor: selectedColor === null ? 'crosshair' : 'none',
-                    imageRendering: 'pixelated',
-                    position: 'absolute',
-                    width: '100%',
-                    height: '100%',
-                    transformOrigin: 'center',
-                  }}
-              />
+                />
+              </div>
+            </div>
+            <div className="right-sidebar">
+              <div className="zoom-controls">
+                <span className="zoom-info">Zoom: {Math.round(scale * 100)}%</span>
+                <div className="zoom-buttons">
+                  <button onClick={() => {
+                    const newScale = Math.min(scale * 1.2, 9); // Limiter à 900% (facteur 9)
+                    setScale(newScale);
+                    setTranslatePos(clampTranslatePos(translatePos));
+                  }}>+</button>
+                  <button onClick={() => {
+                    const newScale = Math.max(scale / 1.2, 1);
+                    setScale(newScale);
+                    setTranslatePos(clampTranslatePos(translatePos));
+                  }}>-</button>
+                  <button onClick={resetCanvasPosition} title="Recentrer le canvas">⟳</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-        <ToastContainer toasts={toasts} removeToast={removeToast} />
       </div>
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
+    </div>
   );
 }
 
