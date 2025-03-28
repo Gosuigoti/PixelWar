@@ -127,7 +127,8 @@ h2 {
   align-items: center;
   gap: 1rem;
   width: 60px;
-  padding: 0.5rem;
+  padding: 0.5rem 0; /* Pas de padding horizontal pour éviter un décalage */
+  margin-right: 1rem; /* Ajouter une marge à droite pour éloigner du bord */
   background: transparent; /* Conteneur extérieur invisible */
   border-left: none; /* Pas de bordure */
 }
@@ -302,6 +303,95 @@ h2 {
   opacity: 1;
 }
 
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.7); /* Fond semi-transparent */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.modal-content {
+  position: relative;
+  background: #333; /* Fond sombre comme les alertes */
+  border: 1px solid #444; /* Bordure brillante */
+  padding: 1.5rem;
+  max-width: 90%;
+  width: 400px;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.modal-content p {
+  color: #a0fea0; /* Texte vert clair pour cohérence */
+  font-family: monospace;
+  font-size: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.modal-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.modal-btn {
+  width: 100%;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-family: monospace;
+  background: #512da8; /* Même couleur que les boutons de zoom */
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.modal-btn:hover {
+  background: #6a40d4;
+}
+
+.modal-btn:active {
+  background: #3d1e91;
+}
+
+.modal-btn:focus {
+  outline: none;
+}
+
+.modal-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: none;
+  border: none;
+  color: #444; /* Même couleur que la bordure */
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.modal-close:hover {
+  color: #a0fea0; /* Surbrillance au survol */
+}
+
+/* Animations pour les toasts */
 @keyframes toast-in {
   from {
     transform: translateY(100%);
@@ -334,7 +424,7 @@ h2 {
 }
 
 /* Media Queries pour responsivité */
-@media (max-width: 600px) {
+@media (max-width: 768px) { /* Abaisser le seuil à 768px pour basculer plus tôt */
   .header {
     flex-direction: column;
     align-items: center;
@@ -350,6 +440,10 @@ h2 {
   .canvas-and-controls {
     flex-direction: column;
     gap: 0.5rem;
+  }
+
+  .canvas-wrapper {
+    margin-bottom: 2rem; /* Espacement suffisant pour les tailles intermédiaires */
   }
 
   .canvas-container {
@@ -368,7 +462,9 @@ h2 {
     flex-direction: row;
     width: 100%;
     justify-content: center;
+    gap: 1.5rem; /* Espacement entre les conteneurs */
     padding: 0.5rem;
+    margin-right: 0; /* Pas de marge à droite en mode mobile */
     border-top: 1px solid transparent;
   }
 
@@ -393,9 +489,22 @@ h2 {
     flex-direction: row;
     gap: 0.5rem;
   }
+
+  .modal-buttons {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
 }
 
 @media (max-width: 480px) {
+  .canvas-wrapper {
+    margin-bottom: 1.5rem; /* Réduire légèrement la marge pour les très petits écrans */
+  }
+
+  .right-sidebar {
+    gap: 1rem; /* Réduire l'espacement pour les très petits écrans */
+  }
+
   h1 {
     font-size: 1.2rem;
   }
@@ -427,5 +536,14 @@ h2 {
 
   .toast span {
     font-size: 0.8rem;
+  }
+
+  .modal-content p {
+    font-size: 0.9rem;
+  }
+
+  .modal-btn {
+    height: 2rem;
+    font-size: 0.9rem;
   }
 }

@@ -50,6 +50,22 @@ const ToastContainer = ({ toasts, removeToast }) => (
     </div>
 );
 
+const BuyCreditsModal = ({ onClose, onBuyCredits }) => {
+    return (
+        <div className="modal-overlay">
+            <div className="modal-content">
+                <button className="modal-close" onClick={onClose}>×</button>
+                <p>You don’t have enough credits to add a pixel. Please buy more credits to continue.</p>
+                <div className="modal-buttons">
+                    <button className="modal-btn" onClick={() => onBuyCredits(10)}>Buy 10 Credits</button>
+                    <button className="modal-btn" onClick={() => onBuyCredits(50)}>Buy 50 Credits</button>
+                    <button className="modal-btn" onClick={() => onBuyCredits(100)}>Buy 100 Credits</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 function App() {
     const { connection } = useConnection();
     const { publicKey, sendTransaction } = useWallet();
@@ -73,13 +89,13 @@ function App() {
     const [toasts, setToasts] = useState([]);
     const toastIdCounter = useRef(0);
     const [remainingCredits, setRemainingCredits] = useState(0);
+    const [showBuyCreditsModal, setShowBuyCreditsModal] = useState(false);
 
     const addToast = (message, type = 'info') => {
         const id = toastIdCounter.current++;
         setToasts(prev => {
-            // Si on a déjà 2 toasts, on supprime le plus ancien (le premier de la liste)
             if (prev.length >= 2) {
-                const newToasts = prev.slice(1); // Supprime le premier toast
+                const newToasts = prev.slice(1);
                 return [...newToasts, { id, message, type }];
             }
             return [...prev, { id, message, type }];
@@ -396,7 +412,7 @@ function App() {
         if (publicKey) fetchRemainingCredits();
     }, [publicKey]);
 
-    const handleBuyCredits = async () => {
+    const handleBuyCredits = async (amount) => {
         if (!publicKey) {
             addToast('Wallet not connected', 'error');
             return;
@@ -415,7 +431,7 @@ function App() {
 
         const transaction = new Transaction();
 
-        const lamportsToSend = 10000000;
+        const lamportsToSend = 10000000; // Montant fixe pour la session key
         const transferIx = SystemProgram.transfer({
             fromPubkey: publicKey,
             toPubkey: newSessionKey.publicKey,
@@ -425,7 +441,7 @@ function App() {
 
         const data = Buffer.alloc(41);
         Buffer.from([236, 132, 140, 248, 22, 186, 122, 234]).copy(data, 0);
-        data.writeUInt8(10, 8);
+        data.writeUInt8(amount, 8); // Nombre de crédits à acheter
         newSessionKey.publicKey.toBuffer().copy(data, 9);
 
         const buyCreditsIx = new TransactionInstruction({
@@ -443,11 +459,12 @@ function App() {
         try {
             const signature = await sendTransaction(transaction, connection);
             await connection.confirmTransaction(signature, 'confirmed');
-            addToast('Successfully bought 10 credits and funded session key', 'success');
+            addToast(`Successfully bought ${amount} credits and funded session key`, 'success');
             setSessionKey(newSessionKey);
             console.log('Session Key set in state:', newSessionKey.publicKey.toBase58());
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            await fetchRemainingCredits();
+            // Ajouter les crédits au total existant
+            setRemainingCredits(prev => prev + amount);
+            setShowBuyCreditsModal(false); // Fermer le pop-in après l'achat
         } catch (error) {
             addToast(`Error buying credits: ${error.message}`, 'error');
             localStorage.removeItem('sessionKey');
@@ -472,6 +489,7 @@ function App() {
         console.log('Remaining Credits:', remainingCredits);
         if (!sessionKey || remainingCredits <= 0) {
             addToast('No valid session or credits. Please buy credits.', 'error');
+            setShowBuyCreditsModal(true); // Ouvre le pop-in
             return;
         }
 
@@ -527,6 +545,7 @@ function App() {
                 setSessionKey(null);
                 localStorage.removeItem('sessionKey');
                 addToast('Session expired. Please buy more credits.', 'info');
+                setShowBuyCreditsModal(true); // Ouvre le pop-in
             } else {
                 addToast('Pixel added successfully', 'success');
             }
@@ -632,6 +651,10 @@ function App() {
         addToast(`Color selected: ${COLORS[color]}`, 'info');
     };
 
+    const handleOpenBuyCreditsModal = () => {
+        setShowBuyCreditsModal(true);
+    };
+
     return (
         <div className="App">
             <div className="header">
@@ -695,13 +718,19 @@ function App() {
                             <div className="credits-controls">
                                 <span className="credits-info">Remaining Credits: {remainingCredits}</span>
                                 <div className="credits-buttons">
-                                    <button className="zoom-btn" onClick={handleBuyCredits}>Buy 10 Credits</button>
+                                    <button className="zoom-btn" onClick={handleOpenBuyCreditsModal}>Buy Credits</button>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+            {showBuyCreditsModal && (
+                <BuyCreditsModal
+                    onClose={() => setShowBuyCreditsModal(false)}
+                    onBuyCredits={handleBuyCredits}
+                />
+            )}
             <ToastContainer toasts={toasts} removeToast={removeToast} />
         </div>
     );
