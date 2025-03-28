@@ -76,7 +76,14 @@ function App() {
 
     const addToast = (message, type = 'info') => {
         const id = toastIdCounter.current++;
-        setToasts(prev => [...prev, { id, message, type }]);
+        setToasts(prev => {
+            // Si on a déjà 2 toasts, on supprime le plus ancien (le premier de la liste)
+            if (prev.length >= 2) {
+                const newToasts = prev.slice(1); // Supprime le premier toast
+                return [...newToasts, { id, message, type }];
+            }
+            return [...prev, { id, message, type }];
+        });
     };
 
     const removeToast = (id) => {
