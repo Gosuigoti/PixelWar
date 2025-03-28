@@ -564,6 +564,14 @@ function App() {
     const handleCanvasClick = async (e) => {
         e.preventDefault();
         if (!mousePixel.current) return;
+
+        // Vérifier si un wallet est connecté
+        if (!publicKey) {
+            addToast('Please connect your wallet to add a pixel', 'error');
+            return;
+        }
+
+        // Afficher l'alerte "Adding pixel..." uniquement après la vérification
         addToast('Adding pixel...', 'info');
         await handleDrawPixel();
     };
@@ -647,6 +655,12 @@ function App() {
     };
 
     const handleColorSelect = (color) => {
+        // Vérifier si un wallet est connecté
+        if (!publicKey) {
+            addToast('Please connect your wallet to select a color', 'error');
+            return;
+        }
+
         setSelectedColor(color);
         addToast(`Color selected: ${COLORS[color]}`, 'info');
     };
@@ -717,9 +731,11 @@ function App() {
                             </div>
                             <div className="credits-controls">
                                 <span className="credits-info">Remaining Credits: {remainingCredits}</span>
-                                <div className="credits-buttons">
-                                    <button className="zoom-btn" onClick={handleOpenBuyCreditsModal}>Buy Credits</button>
-                                </div>
+                                {remainingCredits === 0 && (
+                                    <div className="credits-buttons">
+                                        <button className="zoom-btn" onClick={handleOpenBuyCreditsModal}>Buy Credits</button>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
