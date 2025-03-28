@@ -4,10 +4,14 @@ import './index.css';
 import App from './App';
 import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
 import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react';
-import { BackpackWalletAdapter } from '@solana/wallet-adapter-backpack'; // Importer directement depuis le package Backpack
+import { BackpackWalletAdapter } from '@solana/wallet-adapter-backpack';
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import { clusterApiUrl } from '@solana/web3.js';
 import '@solana/wallet-adapter-react-ui/styles.css';
+import { Buffer } from 'buffer'; // Importer Buffer
+
+// Ajouter Buffer globalement
+window.Buffer = window.Buffer || Buffer;
 
 // Définir le réseau (par exemple, Devnet ou un réseau personnalisé)
 const network = WalletAdapterNetwork.Devnet;

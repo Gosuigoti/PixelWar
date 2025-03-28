@@ -162,7 +162,7 @@ h2 {
   align-items: center;
   justify-content: center;
   font-size: 1rem;
-  font-weight: bold;
+  font-family: monospace;
   background: #512da8;
   color: white;
   border: none;
@@ -179,6 +179,59 @@ h2 {
 }
 
 .zoom-controls button:focus {
+  outline: none;
+}
+
+/* Conteneur pour les crédits, similaire à zoom-controls */
+.credits-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  background: #333;
+  padding: 0.5rem;
+  border: 1px solid #444;
+}
+
+.credits-info {
+  color: #a0fea0;
+  font-size: 0.9rem;
+  font-family: monospace;
+  font-weight: 500;
+}
+
+.credits-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.credits-buttons .zoom-btn {
+  width: auto; /* Largeur ajustée au texte */
+  height: 2rem; /* Même hauteur que les boutons de zoom */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-family: monospace;
+  background: #512da8;
+  color: white;
+  border: none;
+  border-radius: 0; /* Pas d'arrondi, comme les boutons de zoom */
+  cursor: pointer;
+  transition: background 0.3s ease;
+  padding: 0 0.5rem; /* Padding horizontal pour le texte */
+}
+
+.credits-buttons .zoom-btn:hover {
+  background: #6a40d4;
+}
+
+.credits-buttons .zoom-btn:active {
+  background: #3d1e91;
+}
+
+.credits-buttons .zoom-btn:focus {
   outline: none;
 }
 
@@ -329,6 +382,17 @@ h2 {
     flex-direction: row;
     gap: 0.5rem;
   }
+
+  .credits-controls {
+    flex-direction: row;
+    justify-content: center;
+    padding: 0.5rem;
+  }
+
+  .credits-buttons {
+    flex-direction: row;
+    gap: 0.5rem;
+  }
 }
 
 @media (max-width: 480px) {
@@ -337,7 +401,7 @@ h2 {
   }
 
   h2 {
-    font-size: 1rem;
+   字体-size: 1rem;
   }
 
   .color-swatch {
@@ -351,7 +415,13 @@ h2 {
     font-size: 0.9rem;
   }
 
-  .zoom-info {
+  .credits-buttons .zoom-btn {
+    height: 1.8rem; /* Même hauteur que les boutons de zoom */
+    font-size: 0.9rem;
+  }
+
+  .zoom-info,
+  .credits-info {
     font-size: 0.8rem;
   }
 }
