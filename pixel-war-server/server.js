@@ -116,7 +116,7 @@ function broadcastUpdate(update) {
 
 // Gérer les connexions entrantes
 wss.on('connection', (ws, req) => {
-  const ip = req.socket.remoteAddress;
+  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
   console.log(`Nouveau client connecté depuis ${ip}`);
   logNewConnection(ip);
   ws.send(JSON.stringify({ type: 'init', data: canvas }));
