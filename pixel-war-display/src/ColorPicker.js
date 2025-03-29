@@ -33,7 +33,7 @@ const ColorPicker = ({ colors, onSelect, selectedColor }) => {
         onSelect(colorIndex, colorHex); // Si la couleur existe dans COLORS, on la sélectionne
         setCustomColorValue(null);
       } else {
-        onSelect(null, colorHex); // Sinon, on utilise la couleur custom directement
+        onSelect(-1, colorHex); // -1 indique une couleur personnalisée
         setCustomColorValue(colorHex); // Stocker la couleur custom pour l'afficher
       }
       setShowCustomInput(false); // Fermer la pop-in
@@ -63,7 +63,7 @@ const ColorPicker = ({ colors, onSelect, selectedColor }) => {
         />
       ))}
       <div
-        className={`color-swatch custom-color ${selectedColor === null && !customColorValue ? 'selected' : ''}`}
+        className={`color-swatch custom-color ${selectedColor === -1 && customColorValue ? 'selected' : ''}`}
         style={{
           background: customColorValue
             ? customColorValue

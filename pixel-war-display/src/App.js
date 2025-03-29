@@ -658,7 +658,9 @@ function App() {
             addToast('Please connect your wallet to select a color', 'error');
             return;
         }
-        setSelectedColor(index);
+        // Si colorValue est une couleur personnalisée (pas dans COLORS), utiliser un index spécial
+        const isCustomColor = index === null || !COLORS.includes(colorValue);
+        setSelectedColor(isCustomColor ? -1 : index); // -1 pour couleur personnalisée
         setSelectedColorValue(colorValue);
         addToast(
             `Color ${colorValue === null ? 'deselected' : 'selected'}: ${colorValue === null ? 'None' : colorValue}`,
