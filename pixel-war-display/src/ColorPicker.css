@@ -1,35 +1,118 @@
 .color-picker {
-    display: flex;
-    flex-direction: row; /* Disposition horizontale par défaut */
-    flex-wrap: wrap; /* Permettre le retour à la ligne si nécessaire */
-    gap: 0.25rem; /* Espacement entre les carrés de couleur */
-    justify-content: center;
-    align-items: center;
-    margin: 0; /* Supprimer toute marge par défaut */
-    padding: 0; /* Supprimer tout padding par défaut */
-  }
-  
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  justify-content: center;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  position: relative; /* Pour positionner la pop-in */
+}
+
+.color-swatch {
+  width: 1.5rem;
+  height: 1.5rem;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border 0.2s ease;
+  margin: 0;
+}
+
+.color-swatch:hover {
+  border: 2px solid #a0fea0;
+}
+
+.color-swatch.selected {
+  border: 2px solid #a0fea0;
+}
+
+.custom-color {
+  background: linear-gradient(
+    90deg,
+    red,
+    orange,
+    yellow,
+    green,
+    cyan,
+    blue,
+    magenta,
+    red
+  );
+}
+
+.custom-color-popin {
+  position: absolute;
+  top: 2rem;
+  right: 0;
+  background: #333;
+  border: 1px solid #444;
+  padding: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.hex-input {
+  width: 6rem; /* Augmenté pour afficher #000000 */
+  height: 1.5rem;
+  padding: 0.25rem;
+  font-family: monospace;
+  font-size: 0.9rem;
+  background: #252525;
+  color: #a0fea0;
+  border: 1px solid #444;
+  outline: none;
+  text-align: center;
+}
+
+.hex-input::placeholder {
+  color: #666;
+}
+
+.popin-close {
+  background: none;
+  border: none;
+  color: #a0fea0;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.popin-close:hover {
+  opacity: 1;
+}
+
+/* Ajustements pour mobile */
+@media (max-width: 600px) {
   .color-swatch {
-    width: 1.5rem; /* Taille des carrés ajustée pour grand écran */
-    height: 1.5rem;
-    cursor: pointer;
-    border: 2px solid transparent;
-    transition: border 0.2s ease;
-    margin: 0; /* Supprimer toute marge par défaut */
+    width: 1.8rem;
+    height: 1.8rem;
   }
-  
-  .color-swatch:hover {
-    border: 2px solid #a0fea0;
+
+  .custom-color-popin {
+    top: 2.2rem;
   }
-  
-  .color-swatch.selected {
-    border: 2px solid #a0fea0;
+
+  .hex-input {
+    width: 6.5rem; /* Légèrement plus grand sur mobile */
+    height: 1.8rem;
+    font-size: 1rem;
   }
-  
-  /* Ajustements pour mobile */
-  @media (max-width: 600px) {
-    .color-swatch {
-      width: 1.8rem; /* Taille légèrement plus grande sur mobile pour la lisibilité */
-      height: 1.8rem;
-    }
+
+  .popin-close {
+    width: 1.8rem;
+    height: 1.8rem;
+    font-size: 1.2rem;
   }
+}

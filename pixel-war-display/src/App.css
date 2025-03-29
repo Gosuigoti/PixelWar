@@ -352,24 +352,24 @@ h2 {
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-width: 120px; /* Augmenté pour donner plus d'espace aux boutons */
+  min-width: 120px;
 }
 
 .modal-btn {
   width: 100%;
-  height: 3rem; /* Augmenté de 2.5rem à 3rem pour plus de hauteur */
-  min-width: 110px; /* Largeur minimale pour les boutons */
+  height: 3rem;
+  min-width: 110px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.1rem; /* Légèrement plus grand pour équilibrer */
+  font-size: 1.1rem;
   font-family: monospace;
   background: #512da8;
   color: white;
   border: none;
   cursor: pointer;
   transition: background 0.3s ease;
-  padding: 0 1rem; /* Ajout de padding horizontal pour élargir légèrement */
+  padding: 0 1rem;
 }
 
 .modal-btn:hover {
@@ -560,10 +560,10 @@ h2 {
   }
 
   .modal-btn {
-    height: 2.5rem; /* Réduit légèrement pour les petits écrans */
-    font-size: 1rem; /* Réduit pour maintenir la lisibilité */
-    min-width: 100px; /* Légèrement réduit pour s'adapter */
-    padding: 0 0.8rem; /* Ajustement du padding */
+    height: 2.5rem;
+    font-size: 1rem;
+    min-width: 100px;
+    padding: 0 0.8rem;
   }
 
   .buy-credits-modal {
@@ -578,7 +578,7 @@ h2 {
   .modal-button-wrapper {
     width: 100%;
     margin-bottom: 10px;
-    min-width: 0; /* Permet une adaptation complète */
+    min-width: 0;
   }
 
   .modal-btn {

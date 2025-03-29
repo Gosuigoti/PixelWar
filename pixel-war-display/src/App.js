@@ -6,7 +6,6 @@ import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import ColorPicker from './ColorPicker';
 import './App.css';
 
-// Configuration de base
 const PROGRAM_ID = new PublicKey('HAGwaTLgWF5tgjmZzWU42oq9eLXvwLmYSmKfS5Q3zCXs');
 const CLUSTER_URL = 'https://staging-rpc.dev2.eclipsenetwork.xyz';
 const WS_URL = 'wss://www.eclipse-pixel-war.xyz/ws';
@@ -18,8 +17,6 @@ const COLORS = [
 
 const GRID_WIDTH = 200;
 const GRID_HEIGHT = 200;
-const BASE_PAN_LIMIT = 100;
-
 const LAMPORTS_PER_CREDIT = 2500;
 const LAMPORTS_PER_ETH = 500000000;
 
@@ -90,6 +87,7 @@ function App() {
     const canvasRef = useRef(null);
     const offscreenCanvasRef = useRef(null);
     const [selectedColor, setSelectedColor] = useState(null);
+    const [selectedColorValue, setSelectedColorValue] = useState(null);
     const [isLoaded, setLoaded] = useState(false);
     const mousePixel = useRef(null);
     const wsRef = useRef(null);
@@ -112,8 +110,7 @@ function App() {
         const id = toastIdCounter.current++;
         setToasts(prev => {
             if (prev.length >= 2) {
-                const newToasts = prev.slice(1);
-                return [...newToasts, { id, message, type }];
+                return [...prev.slice(1), { id, message, type }];
             }
             return [...prev, { id, message, type }];
         });
@@ -170,7 +167,9 @@ function App() {
 
     useEffect(() => {
         let isActive = true;
-        const ws = new WebSocket(WS_URL);
+
+        const url = publicKey ? `${WS_URL}?publicKey=${publicKey.toBase58()}` : WS_URL;
+        const ws = new WebSocket(url);
         wsRef.current = ws;
 
         ws.onopen = () => {
@@ -186,10 +185,8 @@ function App() {
             if (message.type === 'init') {
                 setCanvasData(message.data);
                 setLoaded(true);
-                if (message.sessionKey && !sessionKey) {
-                    localStorage.setItem('sessionKeyPublic', message.sessionKey);
+                if (message.sessionKey) {
                     setSessionKey(message.sessionKey);
-                    console.log('Received sessionKey from server:', message.sessionKey);
                 }
             } else if (message.type === 'update') {
                 const { x, y, color } = message.data;
@@ -204,7 +201,11 @@ function App() {
             } else if (message.type === 'error') {
                 console.error('Error from server:', message.message);
                 addToast(`Error: ${message.message}`, 'error');
-                if (pendingPixel) setPendingPixel(null);
+                if (message.message.includes('Invalid session key') || message.message.includes('PixelCredit account not found')) {
+                    setSessionKey(null);
+                    setRemainingCredits(0);
+                    setShowBuyCreditsModal(true);
+                }
             } else if (message.type === 'pong' || message.type === 'heartbeat') {
                 // Rien à faire
             } else if (message.type === 'session_synced') {
@@ -232,7 +233,7 @@ function App() {
             clearInterval(heartbeat);
             ws.close();
         };
-    }, [sessionKey]);
+    }, [publicKey]);
 
     const clampTranslatePos = (pos) => {
         const basePixelSize = Math.min(containerSize.width / GRID_WIDTH, containerSize.height / GRID_HEIGHT);
@@ -256,7 +257,7 @@ function App() {
 
         for (let x = 0; x < GRID_WIDTH; x++) {
             for (let y = 0; y < GRID_HEIGHT; y++) {
-                offscreenCtx.fillStyle = COLORS[canvasData[x][y]] || '#FFFFFF';
+                offscreenCtx.fillStyle = canvasData[x][y] || '#FFFFFF';
                 offscreenCtx.fillRect(x, y, 1, 1);
             }
         }
@@ -266,19 +267,16 @@ function App() {
         if (!canvasRef.current || !isLoaded || !canvasData) return;
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
-        ctx.imageSmoothingEnabled = false; // Désactiver l'interpolation
+        ctx.imageSmoothingEnabled = false;
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Calculer la taille de base des pixels et ajuster avec le zoom
         const basePixelSize = Math.min(containerSize.width / GRID_WIDTH, containerSize.height / GRID_HEIGHT);
-        const pixelSize = Math.floor(basePixelSize * scale); // Forcer une taille entière
+        const pixelSize = Math.floor(basePixelSize * scale);
 
-        // Calculer la taille effective du canvas avec zoom
         let effectiveWidth = GRID_WIDTH * pixelSize;
         let effectiveHeight = GRID_HEIGHT * pixelSize;
 
-        // Ajuster pour remplir le conteneur si nécessaire
         if (effectiveWidth < containerSize.width || effectiveHeight < containerSize.height) {
             const scaleToFit = Math.max(containerSize.width / GRID_WIDTH, containerSize.height / GRID_HEIGHT);
             const adjustedPixelSize = Math.floor(scaleToFit * scale);
@@ -286,11 +284,9 @@ function App() {
             effectiveHeight = GRID_HEIGHT * adjustedPixelSize;
         }
 
-        // Calculer les offsets pour centrer le canvas, en arrondissant à des entiers
         const offsetX = Math.floor(containerSize.width / 2 + translatePos.x - effectiveWidth / 2);
         const offsetY = Math.floor(containerSize.height / 2 + translatePos.y - effectiveHeight / 2);
 
-        // Dessiner le canvas principal avec des dimensions entières
         ctx.drawImage(
             offscreenCanvasRef.current,
             0,
@@ -299,33 +295,29 @@ function App() {
             GRID_HEIGHT,
             offsetX,
             offsetY,
-            Math.floor(effectiveWidth), // Forcer des dimensions entières
+            Math.floor(effectiveWidth),
             Math.floor(effectiveHeight)
         );
 
-        // Dessiner le pixel en attente (pendingPixel)
         if (pendingPixel) {
-            ctx.fillStyle = COLORS[pendingPixel.color] || '#FFFFFF';
+            ctx.fillStyle = pendingPixel.color || '#FFFFFF';
             const pendingPosX = offsetX + pendingPixel.x * pixelSize;
             const pendingPosY = offsetY + pendingPixel.y * pixelSize;
-            // Aligner précisément sur la grille avec Math.floor
             const alignedX = Math.floor(pendingPosX);
             const alignedY = Math.floor(pendingPosY);
-            ctx.fillRect(alignedX, alignedY, pixelSize, pixelSize); // Utiliser pixelSize directement
+            ctx.fillRect(alignedX, alignedY, pixelSize, pixelSize);
             ctx.globalAlpha = 0.5;
             ctx.fillRect(alignedX, alignedY, pixelSize, pixelSize);
             ctx.globalAlpha = 1.0;
         }
 
-        // Dessiner la preview mobile
-        if (selectedColor !== null && previewX !== null && previewY !== null) {
-            ctx.fillStyle = COLORS[selectedColor] || '#FFFFFF';
+        if (selectedColorValue && previewX !== null && previewY !== null) {
+            ctx.fillStyle = selectedColorValue;
             const previewPosX = offsetX + previewX * pixelSize;
             const previewPosY = offsetY + previewY * pixelSize;
-            // Aligner précisément sur la grille avec Math.floor
             const alignedX = Math.floor(previewPosX);
             const alignedY = Math.floor(previewPosY);
-            ctx.fillRect(alignedX, alignedY, pixelSize, pixelSize); // Utiliser pixelSize directement
+            ctx.fillRect(alignedX, alignedY, pixelSize, pixelSize);
         }
     };
 
@@ -336,7 +328,7 @@ function App() {
 
     useEffect(() => {
         drawCanvas(mousePixel.current?.x, mousePixel.current?.y);
-    }, [scale, translatePos, containerSize, selectedColor]);
+    }, [scale, translatePos, containerSize, selectedColorValue]);
 
     const handleWheel = (e) => {
         e.preventDefault();
@@ -441,44 +433,27 @@ function App() {
             if (accountInfo) {
                 const data = accountInfo.data;
                 const remaining = data.readUInt8(40);
-                console.log('Remaining Credits from chain:', remaining);
                 setRemainingCredits(remaining);
                 const sessionKeyBytes = data.slice(41, 73);
-                const sessionKeyPubkey = new PublicKey(sessionKeyBytes);
-                console.log('Session Key from chain:', sessionKeyPubkey.toBase58());
-
-                const storedSessionKeyPublic = localStorage.getItem('sessionKeyPublic');
-                if (storedSessionKeyPublic && remaining > 0 && !sessionKeyPubkey.equals(PublicKey.default)) {
-                    if (storedSessionKeyPublic === sessionKeyPubkey.toBase58()) {
-                        setSessionKey(storedSessionKeyPublic);
-                        console.log('Session Key public matches:', storedSessionKeyPublic);
-                        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                            wsRef.current.send(JSON.stringify({ type: 'sync_session', sessionKey: storedSessionKeyPublic }));
-                        }
-                    } else {
-                        console.log('Stored session key public does not match on-chain key');
-                        setSessionKey(sessionKeyPubkey.toBase58());
-                        localStorage.setItem('sessionKeyPublic', sessionKeyPubkey.toBase58());
-                        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                            wsRef.current.send(JSON.stringify({ type: 'sync_session', sessionKey: sessionKeyPubkey.toBase58() }));
-                        }
+                const onChainSessionKey = new PublicKey(sessionKeyBytes).toBase58();
+                if (remaining > 0 && onChainSessionKey !== PublicKey.default.toBase58()) {
+                    setSessionKey(onChainSessionKey);
+                    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                        wsRef.current.send(JSON.stringify({ type: 'sync_session', sessionKey: onChainSessionKey }));
                     }
                 } else {
-                    console.log('No valid session key on chain or no credits');
                     setSessionKey(null);
-                    localStorage.removeItem('sessionKeyPublic');
+                    setRemainingCredits(0);
                 }
             } else {
-                console.log('PixelCredit account not found');
                 setRemainingCredits(0);
                 setSessionKey(null);
-                localStorage.removeItem('sessionKeyPublic');
             }
         } catch (error) {
             console.error('Error fetching credits:', error);
+            addToast('Error fetching credits', 'error');
             setRemainingCredits(0);
             setSessionKey(null);
-            localStorage.removeItem('sessionKeyPublic');
         }
     };
 
@@ -492,101 +467,94 @@ function App() {
             return;
         }
 
-        const newSessionKey = Keypair.generate();
-        console.log('New Session Key Public:', newSessionKey.publicKey.toBase58());
-        localStorage.setItem('sessionKey', JSON.stringify(Array.from(newSessionKey.secretKey)));
-        localStorage.setItem('sessionKeyPublic', newSessionKey.publicKey.toBase58());
-        console.log('Session Key stored in localStorage');
-
-        const recipientPubkey = new PublicKey('EiogKSRa3tQJXyFrQqecc5z8DHNwjAn8pdR61yTKdLaP');
+        const sessionKeypair = Keypair.generate();
         const [pixelCreditPda] = PublicKey.findProgramAddressSync(
             [Buffer.from('pixel-credit'), publicKey.toBuffer()],
             PROGRAM_ID
         );
 
+        const data = Buffer.concat([
+            Buffer.from([14, 173, 58, 38, 248, 235, 115, 102]), // Discriminator pour buy_credits
+            Buffer.from([amount]),
+            sessionKeypair.publicKey.toBuffer()
+        ]);
+
         const transaction = new Transaction();
-
-        const lamportsToSend = 2000000;
-        const transferIx = SystemProgram.transfer({
-            fromPubkey: publicKey,
-            toPubkey: newSessionKey.publicKey,
-            lamports: lamportsToSend,
-        });
-        transaction.add(transferIx);
-
-        const data = Buffer.alloc(41);
-        Buffer.from([236, 132, 140, 248, 22, 186, 122, 234]).copy(data, 0);
-        data.writeUInt8(amount, 8);
-        newSessionKey.publicKey.toBuffer().copy(data, 9);
-
-        const buyCreditsIx = new TransactionInstruction({
-            keys: [
-                { pubkey: pixelCreditPda, isSigner: false, isWritable: true },
-                { pubkey: publicKey, isSigner: true, isWritable: true },
-                { pubkey: recipientPubkey, isSigner: false, isWritable: true },
-                { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-            ],
-            programId: PROGRAM_ID,
-            data: data,
-        });
-        transaction.add(buyCreditsIx);
+        transaction.add(
+            SystemProgram.transfer({
+                fromPubkey: publicKey,
+                toPubkey: sessionKeypair.publicKey,
+                lamports: 2000000
+            }),
+            new TransactionInstruction({
+                keys: [
+                    { pubkey: pixelCreditPda, isSigner: false, isWritable: true },
+                    { pubkey: publicKey, isSigner: true, isWritable: true },
+                    { pubkey: sessionKeypair.publicKey, isSigner: false, isWritable: true },
+                    { pubkey: new PublicKey('EiogKSRa3tQJXyFrQqecc5z8DHNwjAn8pdR61yTKdLaP'), isSigner: false, isWritable: true },
+                    { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+                ],
+                programId: PROGRAM_ID,
+                data
+            })
+        );
 
         try {
             const signature = await sendTransaction(transaction, connection);
             await connection.confirmTransaction(signature, 'confirmed');
-            addToast(`Successfully bought ${amount} credits and funded session key`, 'success');
-            setSessionKey(newSessionKey.publicKey.toBase58());
-            console.log('Session Key set in state:', newSessionKey.publicKey.toBase58());
+            addToast(`Successfully bought ${amount} credits`, 'success');
+            setSessionKey(sessionKeypair.publicKey.toBase58());
             setRemainingCredits(prev => prev + amount);
             if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                wsRef.current.send(JSON.stringify({ type: 'sync_session', sessionKey: newSessionKey.publicKey.toBase58() }));
+                wsRef.current.send(JSON.stringify({ type: 'sync_session', sessionKey: sessionKeypair.publicKey.toBase58() }));
             }
             setShowBuyCreditsModal(false);
+            fetchRemainingCredits();
         } catch (error) {
             addToast(`Error buying credits: ${error.message}`, 'error');
-            localStorage.removeItem('sessionKey');
-            localStorage.removeItem('sessionKeyPublic');
         }
     };
 
     const handleDrawPixel = async () => {
         const selectedPixel = mousePixel.current;
-        if (!selectedPixel || !publicKey) return;
+        if (!selectedPixel || !publicKey || !sessionKey) {
+            addToast('Connect wallet and buy credits first', 'error');
+            return;
+        }
 
         if (!isLoaded) {
             addToast('Canvas not loaded', 'error');
             return;
         }
 
-        if (selectedColor === null) {
+        if (selectedColorValue === null) {
             addToast('Select a color', 'warning');
             return;
         }
 
-        if (!sessionKey || remainingCredits <= 0) {
-            addToast('No valid session or credits. Please buy credits.', 'error');
+        if (remainingCredits <= 0) {
+            addToast('No credits remaining. Please buy more.', 'error');
             setShowBuyCreditsModal(true);
             return;
         }
 
-        setPendingPixel({ x: selectedPixel.x, y: selectedPixel.y, color: selectedColor });
+        setPendingPixel({ x: selectedPixel.x, y: selectedPixel.y, color: selectedColorValue });
 
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             wsRef.current.send(JSON.stringify({
                 type: 'update',
-                data: { x: selectedPixel.x, y: selectedPixel.y, color: selectedColor },
+                data: { x: selectedPixel.x, y: selectedPixel.y, color: selectedColorValue },
                 sessionKey: sessionKey
             }));
             setRemainingCredits(prev => prev - 1);
             if (remainingCredits - 1 === 0) {
                 setSessionKey(null);
-                localStorage.removeItem('sessionKey');
-                localStorage.removeItem('sessionKeyPublic');
                 addToast('Session expired. Please buy more credits.', 'info');
                 setShowBuyCreditsModal(true);
             } else {
                 addToast('Pixel added successfully', 'success');
             }
+            setTimeout(fetchRemainingCredits, 1000); // Resync credits
         } else {
             addToast('Not connected to server', 'error');
             setPendingPixel(null);
@@ -685,14 +653,17 @@ function App() {
         addToast('Canvas reset', 'info');
     };
 
-    const handleColorSelect = (color) => {
+    const handleColorSelect = (index, colorValue) => {
         if (!publicKey) {
             addToast('Please connect your wallet to select a color', 'error');
             return;
         }
-
-        setSelectedColor(color);
-        addToast(`Color selected: ${COLORS[color]}`, 'info');
+        setSelectedColor(index);
+        setSelectedColorValue(colorValue);
+        addToast(
+            `Color ${colorValue === null ? 'deselected' : 'selected'}: ${colorValue === null ? 'None' : colorValue}`,
+            'info'
+        );
         drawCanvas(mousePixel.current?.x, mousePixel.current?.y);
     };
 
@@ -738,7 +709,7 @@ function App() {
                             >
                                 <canvas
                                     ref={canvasRef}
-                                    className={`pixel-canvas ${selectedColor === null ? 'crosshair' : ''}`}
+                                    className={`pixel-canvas ${selectedColorValue === null ? 'crosshair' : ''}`}
                                     onContextMenu={(e) => e.preventDefault()}
                                 />
                             </div>
