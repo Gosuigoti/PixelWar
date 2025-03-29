@@ -72,7 +72,7 @@ h2 {
 .canvas-wrapper {
   flex: 1;
   display: flex;
-  flex-direction: column; /* Empiler le color picker et le canvas verticalement */
+  flex-direction: column;
   align-items: center;
   width: 100%;
 }
@@ -94,31 +94,31 @@ h2 {
   image-rendering: pixelated;
   position: absolute;
   background-color: #fff;
-  cursor: none; /* Par défaut, le curseur est invisible */
+  cursor: none;
 }
 
 .pixel-canvas.crosshair {
-  cursor: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDMyIDMyIj48bGluZSB4MT0iMTYiIHkxPSIwIiB4Mj0iMTYiIHkyPSIzMiIgc3Ryb2tlPSIjYTBmZWEwIiBzdHJva2Utd2lkdGg9IjIiLz48bGluZSB4MT0iMCIgeTE9IjE2IiB4Mj0iMzIiIHkyPSIxNiIgc3Ryb2tlPSIjYTBmZWEwIiBzdHJva2Utd2lkdGg9IjIiLz48L3N2Zz4='), auto; /* Curseur personnalisé en #a0fea0 */
+  cursor: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDMyIDMyIj48bGluZSB4MT0iMTYiIHkxPSIwIiB4Mj0iMTYiIHkyPSIzMiIgc3Ryb2tlPSIjYTBmZWEwIiBzdHJva2Utd2lkdGg9IjIiLz48bGluZSB4MT0iMCIgeTE9IjE2IiB4Mj0iMzIiIHkyPSIxNiIgc3Ryb2tlPSIjYTBmZWEwIiBzdHJva2Utd2lkdGg9IjIiLz48L3N2Zz4='), auto;
 }
 
 .top-bar {
   display: flex;
   justify-content: center;
   width: 100%;
-  max-width: min(80vw, 80vh); /* Même largeur que le canvas */
-  margin-bottom: 0.5rem; /* Espacement entre le color picker et le canvas */
+  max-width: min(80vw, 80vh);
+  margin-bottom: 0.5rem;
 }
 
 .color-picker-container {
   display: flex;
   justify-content: center;
   align-items: center;
-  width: 100%; /* Prendre toute la largeur de .top-bar */
-  max-width: min(80vw, 80vh); /* Assurer la même largeur que le canvas */
-  height: auto; /* Ajuster la hauteur automatiquement */
-  background: #333; /* Fond identique aux zoom controls */
-  border: 1px solid #444; /* Bordure identique aux zoom controls */
-  padding: 0.25rem; /* Padding minimal pour un rendu ajusté */
+  width: 100%;
+  max-width: min(80vw, 80vh);
+  height: auto;
+  background: #333;
+  border: 1px solid #444;
+  padding: 0.25rem;
 }
 
 .right-sidebar {
@@ -127,10 +127,10 @@ h2 {
   align-items: center;
   gap: 1rem;
   width: 60px;
-  padding: 0.5rem 0; /* Pas de padding horizontal pour éviter un décalage */
-  margin-right: 1rem; /* Ajouter une marge à droite pour éloigner du bord */
-  background: transparent; /* Conteneur extérieur invisible */
-  border-left: none; /* Pas de bordure */
+  padding: 0.5rem 0;
+  margin-right: 1rem;
+  background: transparent;
+  border-left: none;
 }
 
 .zoom-controls {
@@ -183,17 +183,16 @@ h2 {
   outline: none;
 }
 
-/* Conteneur pour les crédits, similaire à zoom-controls */
 .credits-controls {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center; /* Centrer verticalement */
+  justify-content: center;
   gap: 0.5rem;
   background: #333;
   padding: 0.5rem;
   border: 1px solid #444;
-  min-height: 4.5rem; /* Hauteur minimale pour maintenir l'alignement */
+  min-height: 4.5rem;
 }
 
 .credits-info {
@@ -201,7 +200,7 @@ h2 {
   font-size: 0.9rem;
   font-family: monospace;
   font-weight: 500;
-  text-align: center; /* Centrer le texte */
+  text-align: center;
 }
 
 .credits-buttons {
@@ -211,20 +210,20 @@ h2 {
 }
 
 .credits-buttons .zoom-btn {
-  width: auto; /* Largeur ajustée au texte */
-  height: 2rem; /* Même hauteur que les boutons de zoom */
+  width: auto;
+  height: 2rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.8rem; /* Réduire la taille de la police */
+  font-size: 0.8rem;
   font-family: monospace;
   background: #512da8;
   color: white;
   border: none;
-  border-radius: 0; /* Pas d'arrondi, comme les boutons de zoom */
+  border-radius: 0;
   cursor: pointer;
   transition: background 0.3s ease;
-  padding: 0 0.5rem; /* Padding horizontal pour le texte */
+  padding: 0 0.5rem;
 }
 
 .credits-buttons .zoom-btn:hover {
@@ -257,8 +256,8 @@ h2 {
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  background: #333; /* Fond sombre comme zoom-controls */
-  border: 1px solid #444; /* Bordure brillante */
+  background: #333;
+  border: 1px solid #444;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   animation: toast-in 0.3s ease-out;
   pointer-events: auto;
@@ -270,25 +269,25 @@ h2 {
 }
 
 .toast-info span {
-  color: #2196F3; /* Texte bleu pour info */
+  color: #2196F3;
 }
 
 .toast-success span {
-  color: #4CAF50; /* Texte vert pour succès */
+  color: #4CAF50;
 }
 
 .toast-warning span {
-  color: #FF9800; /* Texte orange pour warning */
+  color: #FF9800;
 }
 
 .toast-error span {
-  color: #F44336; /* Texte rouge pour erreur */
+  color: #F44336;
 }
 
 .toast-close {
   background: none;
   border: none;
-  color: #a0fea0; /* Couleur cohérente avec le reste de l'interface */
+  color: #a0fea0;
   font-size: 18px;
   cursor: pointer;
   padding: 0;
@@ -311,9 +310,9 @@ h2 {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.7); /* Fond semi-transparent */
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -322,8 +321,8 @@ h2 {
 
 .modal-content {
   position: relative;
-  background: #333; /* Fond sombre comme les alertes */
-  border: 1px solid #444; /* Bordure brillante */
+  background: #333;
+  border: 1px solid #444;
   padding: 1.5rem;
   max-width: 90%;
   width: 400px;
@@ -331,8 +330,12 @@ h2 {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
+.buy-credits-modal {
+  min-width: 500px;
+}
+
 .modal-content p {
-  color: #a0fea0; /* Texte vert clair pour cohérence */
+  color: #a0fea0;
   font-family: monospace;
   font-size: 1rem;
   margin-bottom: 1.5rem;
@@ -340,23 +343,33 @@ h2 {
 
 .modal-buttons {
   display: flex;
+  justify-content: space-around;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.modal-button-wrapper {
+  display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  align-items: center;
+  min-width: 120px; /* Augmenté pour donner plus d'espace aux boutons */
 }
 
 .modal-btn {
   width: 100%;
-  height: 2.5rem;
+  height: 3rem; /* Augmenté de 2.5rem à 3rem pour plus de hauteur */
+  min-width: 110px; /* Largeur minimale pour les boutons */
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
+  font-size: 1.1rem; /* Légèrement plus grand pour équilibrer */
   font-family: monospace;
-  background: #512da8; /* Même couleur que les boutons de zoom */
+  background: #512da8;
   color: white;
   border: none;
   cursor: pointer;
   transition: background 0.3s ease;
+  padding: 0 1rem; /* Ajout de padding horizontal pour élargir légèrement */
 }
 
 .modal-btn:hover {
@@ -371,13 +384,19 @@ h2 {
   outline: none;
 }
 
+.modal-cost {
+  font-size: 0.9em;
+  color: #666;
+  margin-top: 5px;
+}
+
 .modal-close {
   position: absolute;
   top: 0.5rem;
   right: 0.5rem;
   background: none;
   border: none;
-  color: #444; /* Même couleur que la bordure */
+  color: #444;
   font-size: 18px;
   cursor: pointer;
   padding: 0;
@@ -391,7 +410,7 @@ h2 {
 }
 
 .modal-close:hover {
-  color: #a0fea0; /* Surbrillance au survol */
+  color: #a0fea0;
 }
 
 /* Animations pour les toasts */
@@ -421,13 +440,12 @@ h2 {
   animation: toast-out 0.3s forwards;
 }
 
-/* Définir explicitement la classe .hidden */
 .hidden {
   display: none !important;
 }
 
 /* Media Queries pour responsivité */
-@media (max-width: 768px) { /* Abaisser le seuil à 768px pour basculer plus tôt */
+@media (max-width: 768px) {
   .header {
     flex-direction: column;
     align-items: center;
@@ -446,7 +464,7 @@ h2 {
   }
 
   .canvas-wrapper {
-    margin-bottom: 2rem; /* Espacement suffisant pour les tailles intermédiaires */
+    margin-bottom: 2rem;
   }
 
   .canvas-container {
@@ -454,20 +472,20 @@ h2 {
   }
 
   .top-bar {
-    max-width: min(90vw, 90vh); /* Ajuster pour mobile */
+    max-width: min(90vw, 90vh);
   }
 
   .color-picker-container {
-    max-width: min(90vw, 90vh); /* Ajuster pour mobile */
+    max-width: min(90vw, 90vh);
   }
 
   .right-sidebar {
     flex-direction: row;
     width: 100%;
     justify-content: center;
-    gap: 1.5rem; /* Espacement entre les conteneurs */
+    gap: 1.5rem;
     padding: 0.5rem;
-    margin-right: 0; /* Pas de marge à droite en mode mobile */
+    margin-right: 0;
     border-top: 1px solid transparent;
   }
 
@@ -486,27 +504,22 @@ h2 {
     flex-direction: row;
     justify-content: center;
     padding: 0.5rem;
-    min-height: auto; /* Ajuster la hauteur en mode mobile */
+    min-height: auto;
   }
 
   .credits-buttons {
     flex-direction: row;
     gap: 0.5rem;
   }
-
-  .modal-buttons {
-    flex-direction: column;
-    gap: 0.5rem;
-  }
 }
 
 @media (max-width: 480px) {
   .canvas-wrapper {
-    margin-bottom: 1.5rem; /* Réduire légèrement la marge pour les très petits écrans */
+    margin-bottom: 1.5rem;
   }
 
   .right-sidebar {
-    gap: 1rem; /* Réduire l'espacement pour les très petits écrans */
+    gap: 1rem;
   }
 
   h1 {
@@ -529,8 +542,8 @@ h2 {
   }
 
   .credits-buttons .zoom-btn {
-    height: 1.8rem; /* Même hauteur que les boutons de zoom */
-    font-size: 0.7rem; /* Réduire encore la taille de la police pour les petits écrans */
+    height: 1.8rem;
+    font-size: 0.7rem;
   }
 
   .zoom-info,
@@ -547,7 +560,29 @@ h2 {
   }
 
   .modal-btn {
-    height: 2rem;
-    font-size: 0.9rem;
+    height: 2.5rem; /* Réduit légèrement pour les petits écrans */
+    font-size: 1rem; /* Réduit pour maintenir la lisibilité */
+    min-width: 100px; /* Légèrement réduit pour s'adapter */
+    padding: 0 0.8rem; /* Ajustement du padding */
+  }
+
+  .buy-credits-modal {
+    min-width: 100%;
+  }
+
+  .modal-buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .modal-button-wrapper {
+    width: 100%;
+    margin-bottom: 10px;
+    min-width: 0; /* Permet une adaptation complète */
+  }
+
+  .modal-btn {
+    width: 100%;
+    max-width: 200px;
   }
 }

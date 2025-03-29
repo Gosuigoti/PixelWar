@@ -9,7 +9,7 @@ import './App.css';
 // Configuration de base
 const PROGRAM_ID = new PublicKey('HAGwaTLgWF5tgjmZzWU42oq9eLXvwLmYSmKfS5Q3zCXs');
 const CLUSTER_URL = 'https://staging-rpc.dev2.eclipsenetwork.xyz';
-const WS_URL = 'ws://localhost:8080';
+const WS_URL = 'wss://www.eclipse-pixel-war.xyz/ws';
 
 const COLORS = [
     '#FFFFFF', '#000000', '#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF',
@@ -19,6 +19,9 @@ const COLORS = [
 const GRID_WIDTH = 200;
 const GRID_HEIGHT = 200;
 const BASE_PAN_LIMIT = 100;
+
+const LAMPORTS_PER_CREDIT = 2500;
+const LAMPORTS_PER_ETH = 500000000;
 
 const debounce = (func, wait) => {
     let timeout;
@@ -51,15 +54,28 @@ const ToastContainer = ({ toasts, removeToast }) => (
 );
 
 const BuyCreditsModal = ({ onClose, onBuyCredits }) => {
+    const cost10Credits = (10 * LAMPORTS_PER_CREDIT) / LAMPORTS_PER_ETH;
+    const cost50Credits = (50 * LAMPORTS_PER_CREDIT) / LAMPORTS_PER_ETH;
+    const cost100Credits = (100 * LAMPORTS_PER_CREDIT) / LAMPORTS_PER_ETH;
+
     return (
         <div className="modal-overlay">
-            <div className="modal-content">
+            <div className="modal-content buy-credits-modal">
                 <button className="modal-close" onClick={onClose}>×</button>
                 <p>You don’t have enough credits to add a pixel. Please buy more credits to continue.</p>
                 <div className="modal-buttons">
-                    <button className="modal-btn" onClick={() => onBuyCredits(10)}>Buy 10 Credits</button>
-                    <button className="modal-btn" onClick={() => onBuyCredits(50)}>Buy 50 Credits</button>
-                    <button className="modal-btn" onClick={() => onBuyCredits(100)}>Buy 100 Credits</button>
+                    <div className="modal-button-wrapper">
+                        <button className="modal-btn" onClick={() => onBuyCredits(10)}>10 Credits</button>
+                        <div className="modal-cost">{cost10Credits.toFixed(5)} ETH</div>
+                    </div>
+                    <div className="modal-button-wrapper">
+                        <button className="modal-btn" onClick={() => onBuyCredits(50)}>50 Credits</button>
+                        <div className="modal-cost">{cost50Credits.toFixed(5)} ETH</div>
+                    </div>
+                    <div className="modal-button-wrapper">
+                        <button className="modal-btn" onClick={() => onBuyCredits(100)}>100 Credits</button>
+                        <div className="modal-cost">{cost100Credits.toFixed(5)} ETH</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -90,6 +106,7 @@ function App() {
     const toastIdCounter = useRef(0);
     const [remainingCredits, setRemainingCredits] = useState(0);
     const [showBuyCreditsModal, setShowBuyCreditsModal] = useState(false);
+    const [pendingPixel, setPendingPixel] = useState(null);
 
     const addToast = (message, type = 'info') => {
         const id = toastIdCounter.current++;
@@ -169,6 +186,11 @@ function App() {
             if (message.type === 'init') {
                 setCanvasData(message.data);
                 setLoaded(true);
+                if (message.sessionKey && !sessionKey) {
+                    localStorage.setItem('sessionKeyPublic', message.sessionKey);
+                    setSessionKey(message.sessionKey);
+                    console.log('Received sessionKey from server:', message.sessionKey);
+                }
             } else if (message.type === 'update') {
                 const { x, y, color } = message.data;
                 setCanvasData(prev => {
@@ -176,6 +198,18 @@ function App() {
                     newCanvas[x][y] = color;
                     return newCanvas;
                 });
+                if (pendingPixel && pendingPixel.x === x && pendingPixel.y === y) {
+                    setPendingPixel(null);
+                }
+            } else if (message.type === 'error') {
+                console.error('Error from server:', message.message);
+                addToast(`Error: ${message.message}`, 'error');
+                if (pendingPixel) setPendingPixel(null);
+            } else if (message.type === 'pong' || message.type === 'heartbeat') {
+                // Rien à faire
+            } else if (message.type === 'session_synced') {
+                console.log('Session key synced with server:', message.sessionKey);
+                setSessionKey(message.sessionKey);
             }
         };
 
@@ -183,7 +217,7 @@ function App() {
             if (isActive) addToast('Disconnected from server', 'error');
         };
 
-        ws.onerror = (error) => {
+        ws.onerror = () => {
             if (isActive) addToast('WebSocket error', 'error');
         };
 
@@ -198,7 +232,7 @@ function App() {
             clearInterval(heartbeat);
             ws.close();
         };
-    }, []);
+    }, [sessionKey]);
 
     const clampTranslatePos = (pos) => {
         const basePixelSize = Math.min(containerSize.width / GRID_WIDTH, containerSize.height / GRID_HEIGHT);
@@ -232,42 +266,77 @@ function App() {
         if (!canvasRef.current || !isLoaded || !canvasData) return;
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
-        ctx.imageSmoothingEnabled = false;
+        ctx.imageSmoothingEnabled = false; // Désactiver l'interpolation
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+        // Calculer la taille de base des pixels et ajuster avec le zoom
         const basePixelSize = Math.min(containerSize.width / GRID_WIDTH, containerSize.height / GRID_HEIGHT);
-        const pixelSize = basePixelSize * scale;
+        const pixelSize = Math.floor(basePixelSize * scale); // Forcer une taille entière
+
+        // Calculer la taille effective du canvas avec zoom
         let effectiveWidth = GRID_WIDTH * pixelSize;
         let effectiveHeight = GRID_HEIGHT * pixelSize;
 
+        // Ajuster pour remplir le conteneur si nécessaire
         if (effectiveWidth < containerSize.width || effectiveHeight < containerSize.height) {
             const scaleToFit = Math.max(containerSize.width / GRID_WIDTH, containerSize.height / GRID_HEIGHT);
-            effectiveWidth = GRID_WIDTH * scaleToFit * scale;
-            effectiveHeight = GRID_HEIGHT * scaleToFit * scale;
+            const adjustedPixelSize = Math.floor(scaleToFit * scale);
+            effectiveWidth = GRID_WIDTH * adjustedPixelSize;
+            effectiveHeight = GRID_HEIGHT * adjustedPixelSize;
         }
 
-        const offsetX = Math.round(containerSize.width / 2 + translatePos.x - effectiveWidth / 2);
-        const offsetY = Math.round(containerSize.height / 2 + translatePos.y - effectiveHeight / 2);
+        // Calculer les offsets pour centrer le canvas, en arrondissant à des entiers
+        const offsetX = Math.floor(containerSize.width / 2 + translatePos.x - effectiveWidth / 2);
+        const offsetY = Math.floor(containerSize.height / 2 + translatePos.y - effectiveHeight / 2);
 
-        ctx.drawImage(offscreenCanvasRef.current, 0, 0, GRID_WIDTH, GRID_HEIGHT, offsetX, offsetY, effectiveWidth, effectiveHeight);
+        // Dessiner le canvas principal avec des dimensions entières
+        ctx.drawImage(
+            offscreenCanvasRef.current,
+            0,
+            0,
+            GRID_WIDTH,
+            GRID_HEIGHT,
+            offsetX,
+            offsetY,
+            Math.floor(effectiveWidth), // Forcer des dimensions entières
+            Math.floor(effectiveHeight)
+        );
 
+        // Dessiner le pixel en attente (pendingPixel)
+        if (pendingPixel) {
+            ctx.fillStyle = COLORS[pendingPixel.color] || '#FFFFFF';
+            const pendingPosX = offsetX + pendingPixel.x * pixelSize;
+            const pendingPosY = offsetY + pendingPixel.y * pixelSize;
+            // Aligner précisément sur la grille avec Math.floor
+            const alignedX = Math.floor(pendingPosX);
+            const alignedY = Math.floor(pendingPosY);
+            ctx.fillRect(alignedX, alignedY, pixelSize, pixelSize); // Utiliser pixelSize directement
+            ctx.globalAlpha = 0.5;
+            ctx.fillRect(alignedX, alignedY, pixelSize, pixelSize);
+            ctx.globalAlpha = 1.0;
+        }
+
+        // Dessiner la preview mobile
         if (selectedColor !== null && previewX !== null && previewY !== null) {
             ctx.fillStyle = COLORS[selectedColor] || '#FFFFFF';
             const previewPosX = offsetX + previewX * pixelSize;
             const previewPosY = offsetY + previewY * pixelSize;
-            ctx.fillRect(Math.round(previewPosX), Math.round(previewPosY), Math.round(pixelSize), Math.round(pixelSize));
+            // Aligner précisément sur la grille avec Math.floor
+            const alignedX = Math.floor(previewPosX);
+            const alignedY = Math.floor(previewPosY);
+            ctx.fillRect(alignedX, alignedY, pixelSize, pixelSize); // Utiliser pixelSize directement
         }
     };
 
     useEffect(() => {
         drawOffscreenCanvas();
-        drawCanvas();
-    }, [canvasData, isLoaded]);
+        drawCanvas(mousePixel.current?.x, mousePixel.current?.y);
+    }, [canvasData, isLoaded, pendingPixel]);
 
     useEffect(() => {
         drawCanvas(mousePixel.current?.x, mousePixel.current?.y);
-    }, [scale, translatePos, containerSize]);
+    }, [scale, translatePos, containerSize, selectedColor]);
 
     const handleWheel = (e) => {
         e.preventDefault();
@@ -378,33 +447,38 @@ function App() {
                 const sessionKeyPubkey = new PublicKey(sessionKeyBytes);
                 console.log('Session Key from chain:', sessionKeyPubkey.toBase58());
 
-                const storedSessionKey = localStorage.getItem('sessionKey');
-                if (storedSessionKey && remaining > 0 && !sessionKeyPubkey.equals(PublicKey.default)) {
-                    const keypair = Keypair.fromSecretKey(new Uint8Array(JSON.parse(storedSessionKey)));
-                    if (keypair.publicKey.equals(sessionKeyPubkey)) {
-                        setSessionKey(keypair);
-                        console.log('Session Key restored from localStorage:', keypair.publicKey.toBase58());
+                const storedSessionKeyPublic = localStorage.getItem('sessionKeyPublic');
+                if (storedSessionKeyPublic && remaining > 0 && !sessionKeyPubkey.equals(PublicKey.default)) {
+                    if (storedSessionKeyPublic === sessionKeyPubkey.toBase58()) {
+                        setSessionKey(storedSessionKeyPublic);
+                        console.log('Session Key public matches:', storedSessionKeyPublic);
+                        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                            wsRef.current.send(JSON.stringify({ type: 'sync_session', sessionKey: storedSessionKeyPublic }));
+                        }
                     } else {
-                        console.log('Stored session key does not match on-chain key');
-                        setSessionKey(null);
-                        localStorage.removeItem('sessionKey');
+                        console.log('Stored session key public does not match on-chain key');
+                        setSessionKey(sessionKeyPubkey.toBase58());
+                        localStorage.setItem('sessionKeyPublic', sessionKeyPubkey.toBase58());
+                        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                            wsRef.current.send(JSON.stringify({ type: 'sync_session', sessionKey: sessionKeyPubkey.toBase58() }));
+                        }
                     }
                 } else {
                     console.log('No valid session key on chain or no credits');
                     setSessionKey(null);
-                    localStorage.removeItem('sessionKey');
+                    localStorage.removeItem('sessionKeyPublic');
                 }
             } else {
                 console.log('PixelCredit account not found');
                 setRemainingCredits(0);
                 setSessionKey(null);
-                localStorage.removeItem('sessionKey');
+                localStorage.removeItem('sessionKeyPublic');
             }
         } catch (error) {
             console.error('Error fetching credits:', error);
             setRemainingCredits(0);
             setSessionKey(null);
-            localStorage.removeItem('sessionKey');
+            localStorage.removeItem('sessionKeyPublic');
         }
     };
 
@@ -421,6 +495,7 @@ function App() {
         const newSessionKey = Keypair.generate();
         console.log('New Session Key Public:', newSessionKey.publicKey.toBase58());
         localStorage.setItem('sessionKey', JSON.stringify(Array.from(newSessionKey.secretKey)));
+        localStorage.setItem('sessionKeyPublic', newSessionKey.publicKey.toBase58());
         console.log('Session Key stored in localStorage');
 
         const recipientPubkey = new PublicKey('EiogKSRa3tQJXyFrQqecc5z8DHNwjAn8pdR61yTKdLaP');
@@ -431,7 +506,7 @@ function App() {
 
         const transaction = new Transaction();
 
-        const lamportsToSend = 10000000; // Montant fixe pour la session key
+        const lamportsToSend = 2000000;
         const transferIx = SystemProgram.transfer({
             fromPubkey: publicKey,
             toPubkey: newSessionKey.publicKey,
@@ -441,7 +516,7 @@ function App() {
 
         const data = Buffer.alloc(41);
         Buffer.from([236, 132, 140, 248, 22, 186, 122, 234]).copy(data, 0);
-        data.writeUInt8(amount, 8); // Nombre de crédits à acheter
+        data.writeUInt8(amount, 8);
         newSessionKey.publicKey.toBuffer().copy(data, 9);
 
         const buyCreditsIx = new TransactionInstruction({
@@ -460,14 +535,17 @@ function App() {
             const signature = await sendTransaction(transaction, connection);
             await connection.confirmTransaction(signature, 'confirmed');
             addToast(`Successfully bought ${amount} credits and funded session key`, 'success');
-            setSessionKey(newSessionKey);
+            setSessionKey(newSessionKey.publicKey.toBase58());
             console.log('Session Key set in state:', newSessionKey.publicKey.toBase58());
-            // Ajouter les crédits au total existant
             setRemainingCredits(prev => prev + amount);
-            setShowBuyCreditsModal(false); // Fermer le pop-in après l'achat
+            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({ type: 'sync_session', sessionKey: newSessionKey.publicKey.toBase58() }));
+            }
+            setShowBuyCreditsModal(false);
         } catch (error) {
             addToast(`Error buying credits: ${error.message}`, 'error');
             localStorage.removeItem('sessionKey');
+            localStorage.removeItem('sessionKeyPublic');
         }
     };
 
@@ -485,79 +563,33 @@ function App() {
             return;
         }
 
-        console.log('Session Key:', sessionKey ? sessionKey.publicKey.toBase58() : 'null');
-        console.log('Remaining Credits:', remainingCredits);
         if (!sessionKey || remainingCredits <= 0) {
             addToast('No valid session or credits. Please buy credits.', 'error');
-            setShowBuyCreditsModal(true); // Ouvre le pop-in
+            setShowBuyCreditsModal(true);
             return;
         }
 
-        const quadrant = Math.floor(selectedPixel.x / 100) + Math.floor(selectedPixel.y / 100) * 2;
-        const subX = Math.floor((selectedPixel.x % 100) / 10);
-        const subY = Math.floor((selectedPixel.y % 100) / 10);
-        const pixelX = selectedPixel.x % 10;
-        const pixelY = selectedPixel.y % 10;
+        setPendingPixel({ x: selectedPixel.x, y: selectedPixel.y, color: selectedColor });
 
-        const [subsectionPda] = PublicKey.findProgramAddressSync(
-            [Buffer.from('subsection'), Buffer.from([quadrant]), Buffer.from([subX]), Buffer.from([subY])],
-            PROGRAM_ID
-        );
-        const [pixelCreditPda] = PublicKey.findProgramAddressSync(
-            [Buffer.from('pixel-credit'), publicKey.toBuffer()],
-            PROGRAM_ID
-        );
-
-        const pixel = { x: pixelX, y: pixelY, color: selectedColor };
-        const data = Buffer.alloc(15);
-        Buffer.from([180, 185, 58, 15, 109, 2, 112, 85]).copy(data, 0);
-        data.writeUInt32LE(1, 8);
-        data.writeUInt8(pixel.x, 12);
-        data.writeUInt8(pixel.y, 13);
-        data.writeUInt8(pixel.color, 14);
-
-        const drawPixelsIx = new TransactionInstruction({
-            keys: [
-                { pubkey: subsectionPda, isSigner: false, isWritable: true },
-                { pubkey: pixelCreditPda, isSigner: false, isWritable: true },
-                { pubkey: sessionKey.publicKey, isSigner: true, isWritable: false },
-                { pubkey: publicKey, isSigner: false, isWritable: false },
-                { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-            ],
-            programId: PROGRAM_ID,
-            data: data,
-        });
-
-        const transaction = new Transaction().add(drawPixelsIx);
-        const { blockhash } = await connection.getLatestBlockhash();
-        transaction.recentBlockhash = blockhash;
-        transaction.feePayer = sessionKey.publicKey;
-
-        try {
-            transaction.sign(sessionKey);
-            const signature = await connection.sendRawTransaction(transaction.serialize());
-            await connection.confirmTransaction(signature, 'confirmed');
-            const newCanvas = [...canvasData];
-            newCanvas[selectedPixel.x][selectedPixel.y] = selectedColor;
-            setCanvasData(newCanvas);
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+            wsRef.current.send(JSON.stringify({
+                type: 'update',
+                data: { x: selectedPixel.x, y: selectedPixel.y, color: selectedColor },
+                sessionKey: sessionKey
+            }));
             setRemainingCredits(prev => prev - 1);
             if (remainingCredits - 1 === 0) {
                 setSessionKey(null);
                 localStorage.removeItem('sessionKey');
+                localStorage.removeItem('sessionKeyPublic');
                 addToast('Session expired. Please buy more credits.', 'info');
-                setShowBuyCreditsModal(true); // Ouvre le pop-in
+                setShowBuyCreditsModal(true);
             } else {
                 addToast('Pixel added successfully', 'success');
             }
-
-            if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-                wsRef.current.send(JSON.stringify({
-                    type: 'update',
-                    data: { x: selectedPixel.x, y: selectedPixel.y, color: selectedColor }
-                }));
-            }
-        } catch (error) {
-            addToast(`Error: ${error.message || 'Transaction failed'}`, 'error');
+        } else {
+            addToast('Not connected to server', 'error');
+            setPendingPixel(null);
         }
     };
 
@@ -565,15 +597,14 @@ function App() {
         e.preventDefault();
         if (!mousePixel.current) return;
 
-        // Vérifier si un wallet est connecté
         if (!publicKey) {
             addToast('Please connect your wallet to add a pixel', 'error');
             return;
         }
 
-        // Afficher l'alerte "Adding pixel..." uniquement après la vérification
         addToast('Adding pixel...', 'info');
         await handleDrawPixel();
+        drawCanvas(mousePixel.current?.x, mousePixel.current?.y);
     };
 
     useEffect(() => {
@@ -655,7 +686,6 @@ function App() {
     };
 
     const handleColorSelect = (color) => {
-        // Vérifier si un wallet est connecté
         if (!publicKey) {
             addToast('Please connect your wallet to select a color', 'error');
             return;
@@ -663,6 +693,7 @@ function App() {
 
         setSelectedColor(color);
         addToast(`Color selected: ${COLORS[color]}`, 'info');
+        drawCanvas(mousePixel.current?.x, mousePixel.current?.y);
     };
 
     const handleOpenBuyCreditsModal = () => {
