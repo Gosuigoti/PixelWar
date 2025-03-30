@@ -18,7 +18,7 @@ const COLORS = [
 const GRID_WIDTH = 200;
 const GRID_HEIGHT = 200;
 const LAMPORTS_PER_CREDIT = 2500;
-const LAMPORTS_PER_ETH = 500000000;
+const LAMPORTS_PER_ETH = 1000000000; // Corrigé pour 1 ETH = 1 milliard de lamports
 
 const debounce = (func, wait) => {
     let timeout;
@@ -63,15 +63,15 @@ const BuyCreditsModal = ({ onClose, onBuyCredits }) => {
                 <div className="modal-buttons">
                     <div className="modal-button-wrapper">
                         <button className="modal-btn" onClick={() => onBuyCredits(10)}>10 Credits</button>
-                        <div className="modal-cost">{cost10Credits.toFixed(5)} ETH</div>
+                        <div className="modal-cost">{cost10Credits.toFixed(6)} ETH</div>
                     </div>
                     <div className="modal-button-wrapper">
                         <button className="modal-btn" onClick={() => onBuyCredits(50)}>50 Credits</button>
-                        <div className="modal-cost">{cost50Credits.toFixed(5)} ETH</div>
+                        <div className="modal-cost">{cost50Credits.toFixed(6)} ETH</div>
                     </div>
                     <div className="modal-button-wrapper">
                         <button className="modal-btn" onClick={() => onBuyCredits(100)}>100 Credits</button>
-                        <div className="modal-cost">{cost100Credits.toFixed(5)} ETH</div>
+                        <div className="modal-cost">{cost100Credits.toFixed(6)} ETH</div>
                     </div>
                 </div>
             </div>
@@ -554,7 +554,7 @@ function App() {
             } else {
                 addToast('Pixel added successfully', 'success');
             }
-            setTimeout(fetchRemainingCredits, 1000); // Resync credits
+            setTimeout(fetchRemainingCredits, 1000);
         } else {
             addToast('Not connected to server', 'error');
             setPendingPixel(null);
@@ -658,9 +658,7 @@ function App() {
             addToast('Please connect your wallet to select a color', 'error');
             return;
         }
-        // Si colorValue est une couleur personnalisée (pas dans COLORS), utiliser un index spécial
-        const isCustomColor = index === null || !COLORS.includes(colorValue);
-        setSelectedColor(isCustomColor ? -1 : index); // -1 pour couleur personnalisée
+        setSelectedColor(index);
         setSelectedColorValue(colorValue);
         addToast(
             `Color ${colorValue === null ? 'deselected' : 'selected'}: ${colorValue === null ? 'None' : colorValue}`,
