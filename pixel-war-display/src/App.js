@@ -28,10 +28,10 @@ const COLORS = [
 
 const GRID_WIDTH = 200;
 const GRID_HEIGHT = 200;
-const LAMPORTS_PER_CREDIT = 1468; // Coût par crédit
-const WEI_PER_ETH = LAMPORTS_PER_SOL; // 10^9, pour conversion SOL
-const TX_FEE_ECLIPSE = 1582; // Frais de transaction sur Eclipse
-const TREASURY_FEE = 563; // Frais supplémentaires pour atteindre 0,0002 ETH
+const LAMPORTS_PER_CREDIT = 1468;
+const WEI_PER_ETH = LAMPORTS_PER_SOL;
+const TX_FEE_ECLIPSE = 1582;
+const TREASURY_FEE = 563;
 
 const debounce = (func, wait) => {
   let timeout;
@@ -64,7 +64,7 @@ const ToastContainer = ({ toasts, removeToast }) => (
 );
 
 const BuyCreditsModal = ({ onClose, onBuyCredits }) => {
-  const cost50Credits = 0.0002; // Coût total ajusté
+  const cost50Credits = 0.0002;
 
   return (
     <div className="modal-overlay">
@@ -135,9 +135,10 @@ function App() {
     const updateContainerSize = () => {
       if (!containerRef.current) return;
       const { width, height } = containerRef.current.getBoundingClientRect();
-      setContainerSize({ width, height });
-      setColorPickerWidth(width);
-      setTranslatePos({ x: 0, y: 0 });
+      const minDimension = Math.min(width, height);
+      setContainerSize({ width: minDimension, height: minDimension });
+      setColorPickerWidth(minDimension);
+      setTranslatePos(clampTranslatePos(translatePos, scale));
     };
 
     const debouncedUpdateContainerSize = debounce(updateContainerSize, 100);
@@ -204,11 +205,6 @@ function App() {
       } else if (message.type === 'error') {
         console.error('Error from server:', message.message);
         addToast(`Error: ${message.message}`, 'error');
-        if (message.message.includes('Invalid session key') || message.message.includes('PixelCredit account not found')) {
-          setSessionKey(null);
-          setRemainingCredits(0);
-          setShowBuyCreditsModal(true);
-        }
       } else if (message.type === 'pong' || message.type === 'heartbeat') {
         // Nothing to do
       } else if (message.type === 'session_synced') {
@@ -238,9 +234,8 @@ function App() {
     };
   }, [publicKey]);
 
-  const clampTranslatePos = (pos) => {
-    const basePixelSize = Math.min(containerSize.width / GRID_WIDTH, containerSize.height / GRID_HEIGHT);
-    const pixelSize = basePixelSize * scale;
+  const clampTranslatePos = (pos, currentScale) => {
+    const pixelSize = Math.min(containerSize.width / GRID_WIDTH, containerSize.height / GRID_HEIGHT) * currentScale;
     const effectiveCanvasWidth = GRID_WIDTH * pixelSize;
     const effectiveCanvasHeight = GRID_HEIGHT * pixelSize;
 
@@ -251,6 +246,32 @@ function App() {
       x: Math.min(Math.max(pos.x, -maxOffsetX), maxOffsetX),
       y: Math.min(Math.max(pos.y, -maxOffsetY), maxOffsetY)
     };
+  };
+
+  const adjustTranslatePosOnZoom = (newScale, oldScale) => {
+    const pixelSizeOld = Math.min(containerSize.width / GRID_WIDTH, containerSize.height / GRID_HEIGHT) * oldScale;
+    const pixelSizeNew = Math.min(containerSize.width / GRID_WIDTH, containerSize.height / GRID_HEIGHT) * newScale;
+
+    const effectiveWidthOld = GRID_WIDTH * pixelSizeOld;
+    const effectiveHeightOld = GRID_HEIGHT * pixelSizeOld;
+    const effectiveWidthNew = GRID_WIDTH * pixelSizeNew;
+    const effectiveHeightNew = GRID_HEIGHT * pixelSizeNew;
+
+    const offsetXOld = containerSize.width / 2 + translatePos.x - effectiveWidthOld / 2;
+    const offsetYOld = containerSize.height / 2 + translatePos.y - effectiveHeightOld / 2;
+
+    const relativeX = (containerSize.width / 2 - offsetXOld) / effectiveWidthOld;
+    const relativeY = (containerSize.height / 2 - offsetYOld) / effectiveHeightOld;
+
+    const newOffsetX = containerSize.width / 2 - relativeX * effectiveWidthNew;
+    const newOffsetY = containerSize.height / 2 - relativeY * effectiveHeightNew;
+
+    const newTranslatePos = {
+      x: newOffsetX - (containerSize.width / 2 - effectiveWidthNew / 2),
+      y: newOffsetY - (containerSize.height / 2 - effectiveHeightNew / 2)
+    };
+
+    return clampTranslatePos(newTranslatePos, newScale);
   };
 
   const drawOffscreenCanvas = () => {
@@ -275,20 +296,15 @@ function App() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const basePixelSize = Math.min(containerSize.width / GRID_WIDTH, containerSize.height / GRID_HEIGHT);
-    const pixelSize = Math.floor(basePixelSize * scale);
-
-    let effectiveWidth = GRID_WIDTH * pixelSize;
-    let effectiveHeight = GRID_HEIGHT * pixelSize;
-
-    if (effectiveWidth < containerSize.width || effectiveHeight < containerSize.height) {
-      const scaleToFit = Math.max(containerSize.width / GRID_WIDTH, containerSize.height / GRID_HEIGHT);
-      const adjustedPixelSize = Math.floor(scaleToFit * scale);
-      effectiveWidth = GRID_WIDTH * adjustedPixelSize;
-      effectiveHeight = GRID_HEIGHT * adjustedPixelSize;
-    }
+    const pixelSize = basePixelSize * scale;
+    const effectiveWidth = GRID_WIDTH * pixelSize;
+    const effectiveHeight = GRID_HEIGHT * pixelSize;
 
     const offsetX = Math.floor(containerSize.width / 2 + translatePos.x - effectiveWidth / 2);
     const offsetY = Math.floor(containerSize.height / 2 + translatePos.y - effectiveHeight / 2);
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.drawImage(
       offscreenCanvasRef.current,
@@ -298,8 +314,8 @@ function App() {
       GRID_HEIGHT,
       offsetX,
       offsetY,
-      Math.floor(effectiveWidth),
-      Math.floor(effectiveHeight)
+      effectiveWidth,
+      effectiveHeight
     );
 
     if (pendingPixel) {
@@ -335,6 +351,7 @@ function App() {
 
   const handleWheel = (e) => {
     e.preventDefault();
+    const oldScale = scale;
     const scaleMultiplier = e.deltaY < 0 ? 1.1 : 0.9;
     const newScale = Math.min(Math.max(scale * scaleMultiplier, 1), 9);
 
@@ -351,7 +368,7 @@ function App() {
     };
 
     setScale(newScale);
-    setTranslatePos(clampTranslatePos(newTranslatePos));
+    setTranslatePos(adjustTranslatePosOnZoom(newScale, oldScale));
   };
 
   const handleMouseDown = (e) => {
@@ -384,7 +401,7 @@ function App() {
         x: e.clientX - startDragOffset.current.x,
         y: e.clientY - startDragOffset.current.y
       };
-      setTranslatePos(clampTranslatePos(newTranslatePos));
+      setTranslatePos(clampTranslatePos(newTranslatePos, scale));
       return;
     }
 
@@ -396,10 +413,10 @@ function App() {
 
     const basePixelSize = Math.min(containerSize.width / GRID_WIDTH, containerSize.height / GRID_HEIGHT);
     const pixelSize = basePixelSize * scale;
-    const effectiveWidth = Math.round(GRID_WIDTH * pixelSize);
-    const effectiveHeight = Math.round(GRID_HEIGHT * pixelSize);
-    const offsetX = Math.round(containerSize.width / 2 + translatePos.x - effectiveWidth / 2);
-    const offsetY = Math.round(containerSize.height / 2 + translatePos.y - effectiveHeight / 2);
+    const effectiveWidth = GRID_WIDTH * pixelSize;
+    const effectiveHeight = GRID_HEIGHT * pixelSize;
+    const offsetX = containerSize.width / 2 + translatePos.x - effectiveWidth / 2;
+    const offsetY = containerSize.height / 2 + translatePos.y - effectiveHeight / 2;
 
     const canvasX = Math.floor((mouseX - offsetX) / pixelSize);
     const canvasY = Math.floor((mouseY - offsetY) / pixelSize);
@@ -455,8 +472,6 @@ function App() {
     } catch (error) {
       console.error('Error fetching credits:', error);
       addToast('Error fetching credits', 'error');
-      setRemainingCredits(0);
-      setSessionKey(null);
     }
   };
 
@@ -492,7 +507,7 @@ function App() {
     try {
       console.log('Checking if PixelCreditPda exists...');
       const accountInfo = await connection.getAccountInfo(pixelCreditPda);
-      const rentExemptionAmount = 2039280; // Rent exemption initiale
+      const rentExemptionAmount = 2039280;
       console.log('PixelCreditPda exists:', !!accountInfo);
 
       console.log('Fetching wallet balance for:', publicKey.toBase58());
@@ -506,7 +521,7 @@ function App() {
       console.log('Required SOL:', minBalance / WEI_PER_ETH);
 
       if (balance < minBalance) {
-        throw new Error(`Insufficient funds: ${balance / WEI_PER_ETH} SOL available, need ${minBalance / WEI_PER_ETH} SOL`);
+        throw new Error('Insufficient funds, need 0.000200 ETH');
       }
 
       console.log('Building transaction...');
@@ -714,6 +729,7 @@ function App() {
       const distance = Math.hypot(touch1.clientX - touch2.clientX, touch1.clientY - touch2.clientY);
 
       if (lastPinchDistanceRef.current > 0) {
+        const oldScale = scale;
         const scaleFactor = distance / lastPinchDistanceRef.current;
         const newScale = Math.min(Math.max(scale * scaleFactor, 1), 9);
         const center = pinchCenterRef.current;
@@ -727,7 +743,7 @@ function App() {
         };
 
         setScale(newScale);
-        setTranslatePos(clampTranslatePos(newTranslatePos));
+        setTranslatePos(adjustTranslatePosOnZoom(newScale, oldScale));
       }
       lastPinchDistanceRef.current = distance;
     } else if (e.touches.length === 1 && mouseDown) {
@@ -735,7 +751,7 @@ function App() {
         x: e.touches[0].clientX - startDragOffset.current.x,
         y: e.touches[0].clientY - startDragOffset.current.y
       };
-      setTranslatePos(clampTranslatePos(newTranslatePos));
+      setTranslatePos(clampTranslatePos(newTranslatePos, scale));
     }
   };
 
@@ -771,6 +787,20 @@ function App() {
 
   const handleOpenBuyCreditsModal = () => {
     setShowBuyCreditsModal(true);
+  };
+
+  const handleZoomIn = () => {
+    const oldScale = scale;
+    const newScale = Math.min(scale * 1.2, 9);
+    setScale(newScale);
+    setTranslatePos(adjustTranslatePosOnZoom(newScale, oldScale));
+  };
+
+  const handleZoomOut = () => {
+    const oldScale = scale;
+    const newScale = Math.max(scale / 1.2, 1);
+    setScale(newScale);
+    setTranslatePos(adjustTranslatePosOnZoom(newScale, oldScale));
   };
 
   return (
@@ -820,16 +850,8 @@ function App() {
               <div className="zoom-controls">
                 <span className="zoom-info">Zoom: {Math.round(scale * 100)}%</span>
                 <div className="zoom-buttons">
-                  <button onClick={() => {
-                    const newScale = Math.min(scale * 1.2, 9);
-                    setScale(newScale);
-                    setTranslatePos(clampTranslatePos(translatePos));
-                  }}>+</button>
-                  <button onClick={() => {
-                    const newScale = Math.max(scale / 1.2, 1);
-                    setScale(newScale);
-                    setTranslatePos(clampTranslatePos(translatePos));
-                  }}>-</button>
+                  <button onClick={handleZoomIn}>+</button>
+                  <button onClick={handleZoomOut}>-</button>
                   <button onClick={resetCanvasPosition} title="Reset canvas">⟳</button>
                 </div>
               </div>
