@@ -505,22 +505,16 @@ function App() {
     ]);
 
     try {
-      console.log('Checking if PixelCreditPda exists...');
-      const accountInfo = await connection.getAccountInfo(pixelCreditPda);
-      const rentExemptionAmount = 2039280;
-      console.log('PixelCreditPda exists:', !!accountInfo);
-
       console.log('Fetching wallet balance for:', publicKey.toBase58());
       const balance = await connection.getBalance(publicKey);
       console.log('Raw balance (lamports):', balance);
       console.log('Wallet balance:', balance / WEI_PER_ETH, 'SOL');
 
       const totalCost = amount * LAMPORTS_PER_CREDIT + TX_FEE_ECLIPSE + TREASURY_FEE;
-      const minBalance = totalCost + (accountInfo ? 0 : rentExemptionAmount);
-      console.log('Required lamports:', minBalance);
-      console.log('Required SOL:', minBalance / WEI_PER_ETH);
+      console.log('Required lamports:', totalCost);
+      console.log('Required SOL:', totalCost / WEI_PER_ETH);
 
-      if (balance < minBalance) {
+      if (balance < totalCost) {
         throw new Error('Insufficient funds, need 0.000200 ETH');
       }
 
@@ -531,17 +525,6 @@ function App() {
           units: 400_000
         })
       );
-
-      if (!accountInfo) {
-        console.log('Adding rent exemption transfer for PixelCreditPda...');
-        transaction.add(
-          SystemProgram.transfer({
-            fromPubkey: publicKey,
-            toPubkey: pixelCreditPda,
-            lamports: rentExemptionAmount
-          })
-        );
-      }
 
       console.log('Adding funding transfer for sessionKeypair...');
       transaction.add(
