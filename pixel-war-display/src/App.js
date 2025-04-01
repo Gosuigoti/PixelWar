@@ -17,6 +17,7 @@ import ColorPicker from './ColorPicker';
 import './App.css';
 
 const PROGRAM_ID = new PublicKey('tUEdVaX96HLDaa1Mbn4r3ct9rKbXE8ey8k145HEV64Z');
+const TREASURY_PUBLIC_KEY = new PublicKey('EiogKSRa3tQJXyFrQqecc5z8DHNwjAn8pdR61yTKdLaP');
 const CLUSTER_URL = 'https://eclipse.helius-rpc.com';
 const WS_URL = 'wss://www.eclipse-pixel-war.xyz/ws';
 
@@ -27,9 +28,9 @@ const COLORS = [
 
 const GRID_WIDTH = 200;
 const GRID_HEIGHT = 200;
-const LAMPORTS_PER_CREDIT = 2500; // En "lamports" (1 ETH = 10^9 lamports sur Eclipse)
-const WEI_PER_ETH = LAMPORTS_PER_SOL; // 10^9, correct pour Eclipse
-const SESSION_FUNDING_AMOUNT = 500000; // En "lamports"
+const LAMPORTS_PER_CREDIT = 1468; // Ajusté pour 50 crédits = 75 000 lamports
+const WEI_PER_ETH = LAMPORTS_PER_SOL; // 10^9, pour conversion SOL
+const TX_FEE_ECLIPSE = 1582; // Frais de transaction sur Eclipse (~0,0002 USD)
 
 const debounce = (func, wait) => {
   let timeout;
@@ -62,9 +63,7 @@ const ToastContainer = ({ toasts, removeToast }) => (
 );
 
 const BuyCreditsModal = ({ onClose, onBuyCredits }) => {
-  const cost10Credits = (10 * LAMPORTS_PER_CREDIT) / WEI_PER_ETH;
-  const cost50Credits = (50 * LAMPORTS_PER_CREDIT) / WEI_PER_ETH;
-  const cost100Credits = (100 * LAMPORTS_PER_CREDIT) / WEI_PER_ETH;
+  const cost50Credits = 0.00019845; // Coût total affiché pour 50 crédits
 
   return (
     <div className="modal-overlay">
@@ -73,16 +72,8 @@ const BuyCreditsModal = ({ onClose, onBuyCredits }) => {
         <p>You don’t have enough credits to add a pixel. Please buy more credits to continue.</p>
         <div className="modal-buttons">
           <div className="modal-button-wrapper">
-            <button className="modal-btn" onClick={() => onBuyCredits(10)}>10 Credits</button>
-            <div className="modal-cost">{cost10Credits.toFixed(6)} ETH</div>
-          </div>
-          <div className="modal-button-wrapper">
             <button className="modal-btn" onClick={() => onBuyCredits(50)}>50 Credits</button>
             <div className="modal-cost">{cost50Credits.toFixed(6)} ETH</div>
-          </div>
-          <div className="modal-button-wrapper">
-            <button className="modal-btn" onClick={() => onBuyCredits(100)}>100 Credits</button>
-            <div className="modal-cost">{cost100Credits.toFixed(6)} ETH</div>
           </div>
         </div>
       </div>
@@ -218,7 +209,7 @@ function App() {
           setShowBuyCreditsModal(true);
         }
       } else if (message.type === 'pong' || message.type === 'heartbeat') {
-        // Rien à faire
+        // Nothing to do
       } else if (message.type === 'session_synced') {
         console.log('Session key synced with server:', message.sessionKey);
         setSessionKey(message.sessionKey);
@@ -492,7 +483,7 @@ function App() {
     console.log('Session Key (generated):', sessionKeypair.publicKey.toBase58());
 
     const data = Buffer.concat([
-      Buffer.from("0ead3a26f8eb7366", "hex"),
+      Buffer.from("0ead3a26f8eb7366", "hex"), // Instruction discriminator
       Buffer.from([amount]),
       sessionKeypair.publicKey.toBuffer()
     ]);
@@ -500,22 +491,21 @@ function App() {
     try {
       console.log('Checking if PixelCreditPda exists...');
       const accountInfo = await connection.getAccountInfo(pixelCreditPda);
-      const rentExemptionAmount = 2039280;
+      const rentExemptionAmount = 2039280; // Rent exemption initiale
       console.log('PixelCreditPda exists:', !!accountInfo);
 
       console.log('Fetching wallet balance for:', publicKey.toBase58());
       const balance = await connection.getBalance(publicKey);
       console.log('Raw balance (lamports):', balance);
-      console.log('Wallet balance:', balance / WEI_PER_ETH, 'ETH');
+      console.log('Wallet balance:', balance / WEI_PER_ETH, 'SOL');
 
-      const creditsCost = amount * LAMPORTS_PER_CREDIT;
-      const sessionFunding = SESSION_FUNDING_AMOUNT;
-      const minBalance = creditsCost + sessionFunding + 5000 + (accountInfo ? 0 : rentExemptionAmount);
+      const totalCost = amount * LAMPORTS_PER_CREDIT + TX_FEE_ECLIPSE;
+      const minBalance = totalCost + (accountInfo ? 0 : rentExemptionAmount);
       console.log('Required lamports:', minBalance);
-      console.log('Required ETH:', minBalance / WEI_PER_ETH);
+      console.log('Required SOL:', minBalance / WEI_PER_ETH);
 
       if (balance < minBalance) {
-        throw new Error(`Insufficient funds: ${balance / WEI_PER_ETH} ETH available, need ${minBalance / WEI_PER_ETH} ETH`);
+        throw new Error(`Insufficient funds: ${balance / WEI_PER_ETH} SOL available, need ${minBalance / WEI_PER_ETH} SOL`);
       }
 
       console.log('Building transaction...');
@@ -542,7 +532,7 @@ function App() {
         SystemProgram.transfer({
           fromPubkey: publicKey,
           toPubkey: sessionKeypair.publicKey,
-          lamports: sessionFunding
+          lamports: amount * LAMPORTS_PER_CREDIT
         })
       );
 
@@ -552,7 +542,7 @@ function App() {
             { pubkey: pixelCreditPda, isSigner: false, isWritable: true },
             { pubkey: publicKey, isSigner: true, isWritable: true },
             { pubkey: sessionKeypair.publicKey, isSigner: false, isWritable: true },
-            { pubkey: new PublicKey('EiogKSRa3tQJXyFrQqecc5z8DHNwjAn8pdR61yTKdLaP'), isSigner: false, isWritable: true },
+            { pubkey: TREASURY_PUBLIC_KEY, isSigner: false, isWritable: true },
             { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
           ],
           programId: PROGRAM_ID,
