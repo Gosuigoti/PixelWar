@@ -300,8 +300,8 @@ function App() {
     const effectiveWidth = GRID_WIDTH * pixelSize;
     const effectiveHeight = GRID_HEIGHT * pixelSize;
 
-    const offsetX = Math.floor(containerSize.width / 2 + translatePos.x - effectiveWidth / 2);
-    const offsetY = Math.floor(containerSize.height / 2 + translatePos.y - effectiveHeight / 2);
+    const offsetX = containerSize.width / 2 + translatePos.x - effectiveWidth / 2;
+    const offsetY = containerSize.height / 2 + translatePos.y - effectiveHeight / 2;
 
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -331,18 +331,19 @@ function App() {
     }
 
     if (selectedColorValue && previewX !== null && previewY !== null) {
+      // Calculer la position exacte sans arrondi excessif pour la prévisualisation
       const previewPosX = offsetX + previewX * pixelSize;
       const previewPosY = offsetY + previewY * pixelSize;
-      const alignedX = Math.floor(previewPosX);
-      const alignedY = Math.floor(previewPosY);
+      const alignedX = Math.round(previewPosX); // Utilisation de Math.round pour plus de précision
+      const alignedY = Math.round(previewPosY);
 
       // Remplissage avec la couleur sélectionnée
       ctx.fillStyle = selectedColorValue;
       ctx.fillRect(alignedX, alignedY, pixelSize, pixelSize);
 
-      // Ajout de la bordure (plus épaisse)
+      // Ajout de la bordure (taille initiale)
       ctx.strokeStyle = '#000000'; // Couleur de la bordure
-      ctx.lineWidth = pixelSize * 0.2; // Épaisseur augmentée à 20% de la taille du pixel
+      ctx.lineWidth = pixelSize * 0.1; // Remise à la taille initiale (10%)
       ctx.strokeRect(alignedX, alignedY, pixelSize, pixelSize);
     }
   };
@@ -674,7 +675,7 @@ function App() {
       addToast('Not connected to server', 'error');
     }
 
-    // Mettre à jour les crédits après un délai (pour refléter l'état serveur si besoin)
+    // Mettre à jour les crédits après un délai
     setTimeout(fetchRemainingCredits, 1000);
   };
 
