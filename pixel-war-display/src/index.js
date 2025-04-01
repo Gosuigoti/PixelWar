@@ -15,7 +15,7 @@ window.Buffer = window.Buffer || Buffer;
 
 // Définir le réseau (par exemple, Devnet ou un réseau personnalisé)
 const network = WalletAdapterNetwork.Devnet;
-const endpoint = 'https://staging-rpc.dev2.eclipsenetwork.xyz'; // Votre endpoint personnalisé
+const endpoint = 'https://eclipse.helius-rpc.com'; // Votre endpoint personnalisé
 const wallets = [new BackpackWalletAdapter()];
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
