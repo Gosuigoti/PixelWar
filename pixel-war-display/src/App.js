@@ -331,12 +331,19 @@ function App() {
     }
 
     if (selectedColorValue && previewX !== null && previewY !== null) {
-      ctx.fillStyle = selectedColorValue;
       const previewPosX = offsetX + previewX * pixelSize;
       const previewPosY = offsetY + previewY * pixelSize;
       const alignedX = Math.floor(previewPosX);
       const alignedY = Math.floor(previewPosY);
+
+      // Remplissage avec la couleur sélectionnée
+      ctx.fillStyle = selectedColorValue;
       ctx.fillRect(alignedX, alignedY, pixelSize, pixelSize);
+
+      // Ajout de la bordure (plus épaisse)
+      ctx.strokeStyle = '#000000'; // Couleur de la bordure
+      ctx.lineWidth = pixelSize * 0.2; // Épaisseur augmentée à 20% de la taille du pixel
+      ctx.strokeRect(alignedX, alignedY, pixelSize, pixelSize);
     }
   };
 
@@ -638,27 +645,37 @@ function App() {
       return;
     }
 
-    setPendingPixel({ x: selectedPixel.x, y: selectedPixel.y, color: selectedColorValue });
+    // Mettre à jour le canvas localement immédiatement
+    setCanvasData(prev => {
+      const newCanvas = [...prev];
+      newCanvas[selectedPixel.x][selectedPixel.y] = selectedColorValue;
+      return newCanvas;
+    });
 
+    // Décrémenter les crédits immédiatement
+    setRemainingCredits(prev => prev - 1);
+    addToast('Pixel added', 'success');
+
+    // Vérifier si les crédits sont épuisés
+    if (remainingCredits - 1 === 0) {
+      setSessionKey(null);
+      addToast('Session expired. Please buy more credits.', 'info');
+      setShowBuyCreditsModal(true);
+    }
+
+    // Envoyer la mise à jour au serveur en arrière-plan
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
         type: 'update',
         data: { x: selectedPixel.x, y: selectedPixel.y, color: selectedColorValue },
         sessionKey: sessionKey
       }));
-      setRemainingCredits(prev => prev - 1);
-      if (remainingCredits - 1 === 0) {
-        setSessionKey(null);
-        addToast('Session expired. Please buy more credits.', 'info');
-        setShowBuyCreditsModal(true);
-      } else {
-        addToast('Pixel added successfully', 'success');
-      }
-      setTimeout(fetchRemainingCredits, 1000);
     } else {
       addToast('Not connected to server', 'error');
-      setPendingPixel(null);
     }
+
+    // Mettre à jour les crédits après un délai (pour refléter l'état serveur si besoin)
+    setTimeout(fetchRemainingCredits, 1000);
   };
 
   const handleCanvasClick = async (e) => {
@@ -672,7 +689,6 @@ function App() {
 
     addToast('Adding pixel...', 'info');
     await handleDrawPixel();
-    drawCanvas(mousePixel.current?.x, mousePixel.current?.y);
   };
 
   useEffect(() => {
