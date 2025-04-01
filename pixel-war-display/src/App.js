@@ -28,9 +28,10 @@ const COLORS = [
 
 const GRID_WIDTH = 200;
 const GRID_HEIGHT = 200;
-const LAMPORTS_PER_CREDIT = 1468; // Ajusté pour 50 crédits = 75 000 lamports
+const LAMPORTS_PER_CREDIT = 1468; // Coût par crédit
 const WEI_PER_ETH = LAMPORTS_PER_SOL; // 10^9, pour conversion SOL
-const TX_FEE_ECLIPSE = 1582; // Frais de transaction sur Eclipse (~0,0002 USD)
+const TX_FEE_ECLIPSE = 1582; // Frais de transaction sur Eclipse
+const TREASURY_FEE = 563; // Frais supplémentaires pour atteindre 0,0002 ETH
 
 const debounce = (func, wait) => {
   let timeout;
@@ -63,7 +64,7 @@ const ToastContainer = ({ toasts, removeToast }) => (
 );
 
 const BuyCreditsModal = ({ onClose, onBuyCredits }) => {
-  const cost50Credits = 0.00019845; // Coût total affiché pour 50 crédits
+  const cost50Credits = 0.0002; // Coût total ajusté
 
   return (
     <div className="modal-overlay">
@@ -499,7 +500,7 @@ function App() {
       console.log('Raw balance (lamports):', balance);
       console.log('Wallet balance:', balance / WEI_PER_ETH, 'SOL');
 
-      const totalCost = amount * LAMPORTS_PER_CREDIT + TX_FEE_ECLIPSE;
+      const totalCost = amount * LAMPORTS_PER_CREDIT + TX_FEE_ECLIPSE + TREASURY_FEE;
       const minBalance = totalCost + (accountInfo ? 0 : rentExemptionAmount);
       console.log('Required lamports:', minBalance);
       console.log('Required SOL:', minBalance / WEI_PER_ETH);
@@ -533,6 +534,15 @@ function App() {
           fromPubkey: publicKey,
           toPubkey: sessionKeypair.publicKey,
           lamports: amount * LAMPORTS_PER_CREDIT
+        })
+      );
+
+      console.log('Adding treasury fee transfer...');
+      transaction.add(
+        SystemProgram.transfer({
+          fromPubkey: publicKey,
+          toPubkey: TREASURY_PUBLIC_KEY,
+          lamports: TREASURY_FEE
         })
       );
 
