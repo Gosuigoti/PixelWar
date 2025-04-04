@@ -17,7 +17,7 @@ import ColorPicker from './ColorPicker';
 import './App.css';
 
 const PROGRAM_ID = new PublicKey('tUEdVaX96HLDaa1Mbn4r3ct9rKbXE8ey8k145HEV64Z');
-const TREASURY_PUBLIC_KEY = new PublicKey('EiogKSRa3tQJXyFrQqecc5z8DHNwjAn8pdR61yTKdLaP');
+const TREASURY_PUBLIC_KEY = new PublicKey('8C7f9hiEnCogp1U4JNmmZiVe5exdNfdUqZEYq8wT8uWk');
 const CLUSTER_URL = 'https://eclipse.helius-rpc.com';
 const WS_URL = 'wss://www.eclipse-pixel-war.xyz/ws';
 
