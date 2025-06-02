@@ -5,13 +5,13 @@ const fs = require('fs');
 const PORT = 8080;
 const GRID_WIDTH = 200;
 const GRID_HEIGHT = 200;
-const PROGRAM_ID = new PublicKey('HAGwaTLgWF5tgjmZzWU42oq9eLXvwLmYSmKfS5Q3zCXs');
-const canvasFile = '/root/pixel-war-server/canvas.json';
+const PROGRAM_ID = new PublicKey('tUEdVaX96HLDaa1Mbn4r3ct9rKbXE8ey8k145HEV64Z');
+const canvasFile = '/root/pixel-war-server/canvas.json'; // Ajuste selon ton serveur
 
 let canvasData = Array(GRID_WIDTH).fill().map(() => Array(GRID_HEIGHT).fill(0));
-const connection = new Connection('https://staging-rpc.dev2.eclipsenetwork.xyz', 'confirmed');
+const connection = new Connection('https://eclipse.helius-rpc.com', 'confirmed');
 const wallet = Keypair.fromSecretKey(
-    new Uint8Array(JSON.parse(fs.readFileSync('/root/.config/solana/id.json', 'utf8')))
+    new Uint8Array(JSON.parse(fs.readFileSync('/root/.config/solana/id.json', 'utf8'))) // Ajuste le chemin si nécessaire
 );
 
 let sessionKeys = new Map(); // Map<ownerPubkey, sessionKeyPubkey>
@@ -47,7 +47,7 @@ async function spendCredit(ownerPubkey, sessionKeyPubkey) {
     );
 
     const data = Buffer.concat([
-        Buffer.from([184, 191, 206, 9, 70, 85, 25, 139]), // Discriminator pour spend_credit
+        Buffer.from("b8bfce094655198b", "hex"), // Discriminant pour spend_credit
         sessionKeyPubkey.toBuffer() // Argument session_key
     ]);
 
@@ -86,16 +86,15 @@ wss.on('connection', (ws, req) => {
         ownerPubkey = new PublicKey(publicKey).toBase58();
         const sessionKey = sessionKeys.get(ownerPubkey);
         if (sessionKey) {
-            ws.send(JSON.stringify({ 
-                type: 'init', 
+            ws.send(JSON.stringify({
+                type: 'init',
                 data: canvasData,
                 sessionKey: sessionKey
             }));
         } else {
-            // Si pas de sessionKey existante, le client doit acheter des crédits
-            ws.send(JSON.stringify({ 
-                type: 'init', 
-                data: canvasData 
+            ws.send(JSON.stringify({
+                type: 'init',
+                data: canvasData
             }));
         }
     } else {

@@ -28,10 +28,10 @@ const COLORS = [
 
 const GRID_WIDTH = 200;
 const GRID_HEIGHT = 200;
-const LAMPORTS_PER_CREDIT = 1468;
+const LAMPORTS_PER_CREDIT = 146;
 const WEI_PER_ETH = LAMPORTS_PER_SOL;
 const TX_FEE_ECLIPSE = 1582;
-const TREASURY_FEE = 563;
+const TREASURY_FEE = 56;
 
 const debounce = (func, wait) => {
   let timeout;
@@ -63,8 +63,18 @@ const ToastContainer = ({ toasts, removeToast }) => (
   </div>
 );
 
-const BuyCreditsModal = ({ onClose, onBuyCredits }) => {
-  const cost50Credits = 0.0002;
+const BuyCreditsModal = ({ onClose, onBuyCredits, connection }) => {
+  const [rentExemptLamports, setRentExemptLamports] = useState(0);
+
+  useEffect(() => {
+    const fetchRent = async () => {
+      const rent = await connection.getMinimumBalanceForRentExemption(0);
+      setRentExemptLamports(rent);
+    };
+    fetchRent();
+  }, [connection]);
+
+  const cost250Credits = (250 * LAMPORTS_PER_CREDIT + TX_FEE_ECLIPSE + rentExemptLamports + 624000) / WEI_PER_ETH;
 
   return (
     <div className="modal-overlay">
@@ -73,8 +83,8 @@ const BuyCreditsModal = ({ onClose, onBuyCredits }) => {
         <p>You don’t have enough credits to add a pixel. Please buy more credits to continue.</p>
         <div className="modal-buttons">
           <div className="modal-button-wrapper">
-            <button className="modal-btn" onClick={() => onBuyCredits(50)}>50 Credits</button>
-            <div className="modal-cost">{cost50Credits.toFixed(6)} ETH</div>
+            <button className="modal-btn" onClick={() => onBuyCredits(250)}>250 Credits</button>
+            <div className="modal-cost">{cost250Credits.toFixed(6)} ETH</div>
           </div>
         </div>
       </div>
@@ -499,7 +509,7 @@ function App() {
     console.log('Using RPC:', CLUSTER_URL);
 
     const sessionKeypair = Keypair.generate();
-    const [pixelCreditPda] = PublicKey.findProgramAddressSync(
+    const [pixelCreditPda, bump] = PublicKey.findProgramAddressSync(
       [Buffer.from('pixel-credit'), publicKey.toBuffer()],
       PROGRAM_ID
     );
@@ -518,12 +528,14 @@ function App() {
       console.log('Raw balance (lamports):', balance);
       console.log('Wallet balance:', balance / WEI_PER_ETH, 'SOL');
 
-      const totalCost = amount * LAMPORTS_PER_CREDIT + TX_FEE_ECLIPSE + TREASURY_FEE;
+      const rentExemptLamports = await connection.getMinimumBalanceForRentExemption(0);
+      console.log('Rent exempt lamports for Eclipse:', rentExemptLamports);
+      const totalCost = amount * LAMPORTS_PER_CREDIT + TX_FEE_ECLIPSE + rentExemptLamports;
       console.log('Required lamports:', totalCost);
       console.log('Required SOL:', totalCost / WEI_PER_ETH);
 
       if (balance < totalCost) {
-        throw new Error('Insufficient funds, need 0.000200 ETH');
+        throw new Error(`Insufficient funds, need ${(totalCost / WEI_PER_ETH).toFixed(6)} SOL`);
       }
 
       console.log('Building transaction...');
@@ -539,27 +551,18 @@ function App() {
         SystemProgram.transfer({
           fromPubkey: publicKey,
           toPubkey: sessionKeypair.publicKey,
-          lamports: amount * LAMPORTS_PER_CREDIT
-        })
-      );
-
-      console.log('Adding treasury fee transfer...');
-      transaction.add(
-        SystemProgram.transfer({
-          fromPubkey: publicKey,
-          toPubkey: TREASURY_PUBLIC_KEY,
-          lamports: TREASURY_FEE
+          lamports: amount * LAMPORTS_PER_CREDIT + rentExemptLamports
         })
       );
 
       transaction.add(
         new TransactionInstruction({
           keys: [
-            { pubkey: pixelCreditPda, isSigner: false, isWritable: true },
-            { pubkey: publicKey, isSigner: true, isWritable: true },
-            { pubkey: sessionKeypair.publicKey, isSigner: false, isWritable: true },
-            { pubkey: TREASURY_PUBLIC_KEY, isSigner: false, isWritable: true },
-            { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+            { pubkey: pixelCreditPda, isSigner: false, isWritable: true },       // pixel_credit
+            { pubkey: publicKey, isSigner: true, isWritable: true },            // owner
+            { pubkey: sessionKeypair.publicKey, isSigner: false, isWritable: true }, // session_key
+            { pubkey: TREASURY_PUBLIC_KEY, isSigner: false, isWritable: true },  // recipient
+            { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }  // system_program
           ],
           programId: PROGRAM_ID,
           data
@@ -871,6 +874,7 @@ function App() {
         <BuyCreditsModal
           onClose={() => setShowBuyCreditsModal(false)}
           onBuyCredits={handleBuyCredits}
+          connection={connection}
         />
       )}
       <ToastContainer toasts={toasts} removeToast={removeToast} />
