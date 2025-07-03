@@ -45,6 +45,27 @@ h2 {
 .wallet-container {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 1rem;
+}
+
+.free-version-button {
+  background-color: #512da8;
+  color: white;
+  font-family: monospace;
+  border: none;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+}
+
+.free-version-button:hover {
+  background-color: #6a40d4;
 }
 
 .main-content {

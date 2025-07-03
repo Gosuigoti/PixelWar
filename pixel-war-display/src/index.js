@@ -9,6 +9,7 @@ import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
 import { clusterApiUrl } from '@solana/web3.js';
 import '@solana/wallet-adapter-react-ui/styles.css';
 import { Buffer } from 'buffer'; // Importer Buffer
+import { BrowserRouter as Router } from 'react-router-dom';
 
 // Ajouter Buffer globalement
 window.Buffer = window.Buffer || Buffer;
@@ -22,12 +23,14 @@ const root = ReactDOM.createRoot(document.getElementById('root'));
 
 root.render(
   <React.StrictMode>
-    <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider wallets={wallets} autoConnect>
-        <WalletModalProvider>
-          <App />
-        </WalletModalProvider>
-      </WalletProvider>
-    </ConnectionProvider>
+    <Router>
+      <ConnectionProvider endpoint={endpoint}>
+        <WalletProvider wallets={wallets} autoConnect>
+          <WalletModalProvider>
+            <App />
+          </WalletModalProvider>
+        </WalletProvider>
+      </ConnectionProvider>
+    </Router>
   </React.StrictMode>
 );
