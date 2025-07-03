@@ -68,6 +68,11 @@ h2 {
   background-color: #6a40d4;
 }
 
+.zoom-btn.active {
+  background-color: #6a40d4; /* Lighter shade for active state */
+  border: 1px solid #a0fea0; /* Highlight border */
+}
+
 .main-content {
   display: flex;
   flex-direction: column;

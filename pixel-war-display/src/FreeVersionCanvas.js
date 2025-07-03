@@ -69,6 +69,8 @@ function FreeVersionCanvas() {
   const rafId = useRef(null);
   const [toasts, setToasts] = useState([]);
   const toastIdCounter = useRef(0);
+  const [activeTool, setActiveTool] = useState('pixel'); // Default tool is 'pixel'
+  const [lineStartPoint, setLineStartPoint] = useState(null); // For 'line' tool
 
   const addToast = (message, type = 'info') => {
     const id = toastIdCounter.current++;
@@ -82,6 +84,100 @@ function FreeVersionCanvas() {
 
   const removeToast = (id) => {
     setToasts(prev => prev.filter(toast => toast.id !== id));
+  };
+
+  const floodFill = (startX, startY, targetColor, newColor) => {
+    if (targetColor === newColor) return;
+
+    const queue = [[startX, startY]];
+    const visited = new Set();
+    const newCanvasData = JSON.parse(JSON.stringify(canvasData)); // Deep copy
+
+    const getPixelColor = (x, y) => newCanvasData[x] && newCanvasData[x][y];
+    const setPixelColor = (x, y, c) => {
+      if (newCanvasData[x]) {
+        newCanvasData[x][y] = c;
+      }
+    };
+
+    const isValid = (x, y) => {
+      return x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT;
+    };
+
+    while (queue.length > 0) {
+      const [x, y] = queue.shift();
+      const pixelKey = `${x},${y}`;
+
+      if (visited.has(pixelKey)) continue;
+      visited.add(pixelKey);
+
+      if (isValid(x, y) && getPixelColor(x, y) === targetColor) {
+        setPixelColor(x, y, newColor);
+
+        // Add neighbors to the queue
+        if (isValid(x + 1, y)) queue.push([x + 1, y]);
+        if (isValid(x - 1, y)) queue.push([x - 1, y]);
+        if (isValid(x, y + 1)) queue.push([x, y + 1]);
+        if (isValid(x, y - 1)) queue.push([x, y - 1]);
+      }
+    }
+    setCanvasData(newCanvasData);
+    addToast('Fill completed', 'success');
+  };
+
+  // New: Bresenham's Line Algorithm
+  const drawLine = (x0, y0, x1, y1, color) => {
+    const newCanvasData = JSON.parse(JSON.stringify(canvasData));
+    const setPixel = (x, y, c) => {
+      if (x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT) {
+        newCanvasData[x][y] = c;
+      }
+    };
+
+    const dx = Math.abs(x1 - x0);
+    const dy = Math.abs(y1 - y0);
+    const sx = (x0 < x1) ? 1 : -1;
+    const sy = (y0 < y1) ? 1 : -1;
+    let err = dx - dy;
+
+    while (true) {
+      setPixel(x0, y0, color);
+      if (x0 === x1 && y0 === y1) break;
+      const e2 = 2 * err;
+      if (e2 > -dy) { err -= dy; x0 += sx; }
+      if (e2 < dx) { err += dx; y0 += sy; }
+    }
+    setCanvasData(newCanvasData);
+    addToast('Line drawn', 'success');
+  };
+
+  // New: Eyedropper tool logic
+  const handleEyedropper = (x, y) => {
+    const pixelColor = canvasData[x][y];
+    if (pixelColor) {
+      const colorIndex = COLORS.indexOf(pixelColor.toUpperCase());
+      if (colorIndex !== -1) {
+        setSelectedColor(colorIndex);
+        setSelectedColorValue(pixelColor);
+        addToast(`Color picked: ${pixelColor}`, 'info');
+      } else {
+        // If color is not in predefined COLORS, just select it
+        setSelectedColor(null); // Deselect predefined color
+        setSelectedColorValue(pixelColor);
+        addToast(`Custom color picked: ${pixelColor}`, 'info');
+      }
+    }
+    setActiveTool('pixel'); // Switch back to pixel tool after picking color
+  };
+
+  // New: Eraser tool logic
+  const handleErasePixel = (x, y) => {
+    const newCanvasData = JSON.parse(JSON.stringify(canvasData));
+    if (x >= 0 && x < GRID_WIDTH && y >= 0 && y < GRID_HEIGHT) {
+      newCanvasData[x][y] = '#FFFFFF'; // Erase to white
+      setCanvasData(newCanvasData);
+      addToast('Pixel erased', 'success');
+    }
   };
 
   useEffect(() => {
@@ -356,7 +452,41 @@ function FreeVersionCanvas() {
   const handleCanvasClick = (e) => {
     e.preventDefault();
     if (!mousePixel.current) return;
-    handleDrawPixel();
+
+    const { x, y } = mousePixel.current;
+
+    if (selectedColorValue === null && activeTool !== 'eyedropper' && activeTool !== 'eraser') {
+      addToast('Select a color first', 'warning');
+      return;
+    }
+
+    switch (activeTool) {
+      case 'pixel':
+        handleDrawPixel();
+        break;
+      case 'fill':
+        const targetColor = canvasData[x][y];
+        floodFill(x, y, targetColor, selectedColorValue);
+        break;
+      case 'line':
+        if (!lineStartPoint) {
+          setLineStartPoint({ x, y });
+          addToast('Line start point set. Click again for end point.', 'info');
+        } else {
+          drawLine(lineStartPoint.x, lineStartPoint.y, x, y, selectedColorValue);
+          setLineStartPoint(null);
+          addToast('Line drawn', 'success');
+        }
+        break;
+      case 'eyedropper':
+        handleEyedropper(x, y);
+        break;
+      case 'eraser':
+        handleErasePixel(x, y);
+        break;
+      default:
+        break;
+    }
   };
 
   useEffect(() => {
@@ -416,7 +546,7 @@ function FreeVersionCanvas() {
     } else if (e.touches.length === 1 && mouseDown) {
       const newTranslatePos = {
         x: e.touches[0].clientX - startDragOffset.current.x,
-        y: e.touches[0].clientY - startDragOffset.current.y
+        y: e.touches[0].clientY - translatePos.y
       };
       setTranslatePos(clampTranslatePos(newTranslatePos, scale));
     }
@@ -446,6 +576,10 @@ function FreeVersionCanvas() {
       'info'
     );
     drawCanvas(mousePixel.current?.x, mousePixel.current?.y);
+    // If eyedropper was active, switch back to pixel tool
+    if (activeTool === 'eyedropper') {
+      setActiveTool('pixel');
+    }
   };
 
   const handleZoomIn = () => {
@@ -506,6 +640,44 @@ function FreeVersionCanvas() {
               </div>
             </div>
             <div className="right-sidebar">
+              {/* New Tool Buttons */}
+              <button
+                onClick={() => setActiveTool('pixel')}
+                className={`tool-btn ${activeTool === 'pixel' ? 'active' : ''}`}
+                title="Pixel Tool"
+              >
+                Pixel
+              </button>
+              <button
+                onClick={() => setActiveTool('fill')}
+                className={`tool-btn ${activeTool === 'fill' ? 'active' : ''}`}
+                title="Fill Tool"
+              >
+                Fill
+              </button>
+              <button
+                onClick={() => { setActiveTool('line'); setLineStartPoint(null); }}
+                className={`tool-btn ${activeTool === 'line' ? 'active' : ''}`}
+                title="Line Tool"
+              >
+                Line
+              </button>
+              <button
+                onClick={() => setActiveTool('eyedropper')}
+                className={`tool-btn ${activeTool === 'eyedropper' ? 'active' : ''}`}
+                title="Eyedropper Tool"
+              >
+                Eye
+              </button>
+              <button
+                onClick={() => setActiveTool('eraser')}
+                className={`tool-btn ${activeTool === 'eraser' ? 'active' : ''}`}
+                title="Eraser Tool"
+              >
+                Eraser
+              </button>
+              {/* End New Tool Buttons */}
+
               <div className="zoom-controls">
                 <span className="zoom-info">Zoom: {Math.round(scale * 100)}%</span>
                 <div className="zoom-buttons">
