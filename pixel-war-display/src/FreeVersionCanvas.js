@@ -611,6 +611,43 @@ function FreeVersionCanvas() {
         <div style={{ display: isLoaded ? "block" : "none" }} className="game-container">
           <div className="canvas-and-controls">
             <div className="canvas-wrapper">
+              <div className="tool-buttons-container">
+                <button
+                  onClick={() => setActiveTool('pixel')}
+                  className={`tool-btn ${activeTool === 'pixel' ? 'active' : ''}`}
+                  title="Pixel Tool"
+                >
+                  Pixel
+                </button>
+                <button
+                  onClick={() => setActiveTool('fill')}
+                  className={`tool-btn ${activeTool === 'fill' ? 'active' : ''}`}
+                  title="Fill Tool"
+                >
+                  Fill
+                </button>
+                <button
+                  onClick={() => { setActiveTool('line'); setLineStartPoint(null); }}
+                  className={`tool-btn ${activeTool === 'line' ? 'active' : ''}`}
+                  title="Line Tool"
+                >
+                  Line
+                </button>
+                <button
+                  onClick={() => setActiveTool('eyedropper')}
+                  className={`tool-btn ${activeTool === 'eyedropper' ? 'active' : ''}`}
+                  title="Eyedropper Tool"
+                >
+                  Eye
+                </button>
+                <button
+                  onClick={() => setActiveTool('eraser')}
+                  className={`tool-btn ${activeTool === 'eraser' ? 'active' : ''}`}
+                  title="Eraser Tool"
+                >
+                  Eraser
+                </button>
+              </div>
               <div className="top-bar">
                 <div className="color-picker-container" ref={colorPickerContainerRef}>
                   <ColorPicker
@@ -640,44 +677,6 @@ function FreeVersionCanvas() {
               </div>
             </div>
             <div className="right-sidebar">
-              {/* New Tool Buttons */}
-              <button
-                onClick={() => setActiveTool('pixel')}
-                className={`tool-btn ${activeTool === 'pixel' ? 'active' : ''}`}
-                title="Pixel Tool"
-              >
-                Pixel
-              </button>
-              <button
-                onClick={() => setActiveTool('fill')}
-                className={`tool-btn ${activeTool === 'fill' ? 'active' : ''}`}
-                title="Fill Tool"
-              >
-                Fill
-              </button>
-              <button
-                onClick={() => { setActiveTool('line'); setLineStartPoint(null); }}
-                className={`tool-btn ${activeTool === 'line' ? 'active' : ''}`}
-                title="Line Tool"
-              >
-                Line
-              </button>
-              <button
-                onClick={() => setActiveTool('eyedropper')}
-                className={`tool-btn ${activeTool === 'eyedropper' ? 'active' : ''}`}
-                title="Eyedropper Tool"
-              >
-                Eye
-              </button>
-              <button
-                onClick={() => setActiveTool('eraser')}
-                className={`tool-btn ${activeTool === 'eraser' ? 'active' : ''}`}
-                title="Eraser Tool"
-              >
-                Eraser
-              </button>
-              {/* End New Tool Buttons */}
-
               <div className="zoom-controls">
                 <span className="zoom-info">Zoom: {Math.round(scale * 100)}%</span>
                 <div className="zoom-buttons">

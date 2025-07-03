@@ -68,6 +68,43 @@ h2 {
   background-color: #6a40d4;
 }
 
+.tool-buttons-container {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem; /* Space between buttons */
+  width: 100%;
+  max-width: min(80vw, 80vh); /* Match canvas width */
+  margin-bottom: 0.5rem;
+  padding: 0.5rem;
+  background: #252525;
+  border: 1px solid #333;
+}
+
+.tool-btn {
+  width: 3rem; /* Square buttons */
+  height: 2rem; /* Same height as zoom buttons */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-family: monospace;
+  background: #512da8;
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: background 0.3s ease, border 0.3s ease;
+  padding: 0 0.5rem;
+}
+
+.tool-btn:hover {
+  background: #6a40d4;
+}
+
+.tool-btn.active {
+  background-color: #6a40d4; /* Lighter shade for active state */
+  border: 1px solid #a0fea0; /* Highlight border */
+}
+
 .zoom-btn.active {
   background-color: #6a40d4; /* Lighter shade for active state */
   border: 1px solid #a0fea0; /* Highlight border */
@@ -125,6 +162,43 @@ h2 {
 
 .pixel-canvas.crosshair {
   cursor: url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgdmlld0JveD0iMCAwIDMyIDMyIj48bGluZSB4MT0iMTYiIHkxPSIwIiB4Mj0iMTYiIHkyPSIzMiIgc3Ryb2tlPSIjYTBmZWEwIiBzdHJva2Utd2lkdGg9IjIiLz48bGluZSB4MT0iMCIgeTE9IjE2IiB4Mj0iMzIiIHkyPSIxNiIgc3Ryb2tlPSIjYTBmZWEwIiBzdHJva2Utd2lkdGg9IjIiLz48L3N2Zz4='), auto;
+}
+
+.tool-buttons-container {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem; /* Space between buttons */
+  width: 100%;
+  max-width: min(80vw, 80vh); /* Match canvas width */
+  margin-bottom: 0.5rem;
+  padding: 0.5rem;
+  background: #252525;
+  border: 1px solid #333;
+}
+
+.tool-btn {
+  width: 3rem; /* Square buttons */
+  height: 2rem; /* Same height as zoom buttons */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-family: monospace;
+  background: #512da8;
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: background 0.3s ease, border 0.3s ease;
+  padding: 0 0.5rem;
+}
+
+.tool-btn:hover {
+  background: #6a40d4;
+}
+
+.tool-btn.active {
+  background-color: #6a40d4; /* Lighter shade for active state */
+  border: 1px solid #a0fea0; /* Highlight border */
 }
 
 .top-bar {
