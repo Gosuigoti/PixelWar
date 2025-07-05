@@ -8,8 +8,8 @@ const COLORS = [
   '#808080', '#800000', '#008000', '#000080', '#FFA500', '#800080', '#C0C0C0', '#FFD700'
 ];
 
-const GRID_WIDTH = 200;
-const GRID_HEIGHT = 200;
+const GRID_WIDTH = 800;
+const GRID_HEIGHT = 800;
 
 const debounce = (func, wait) => {
   let timeout;
@@ -282,9 +282,9 @@ function FreeVersionCanvas() {
     const offscreenCtx = offscreenCanvasRef.current.getContext('2d');
     offscreenCtx.imageSmoothingEnabled = false;
 
-    for (let x = 0; x < GRID_WIDTH; x++) {
-      for (let y = 0; y < GRID_HEIGHT; y++) {
-        offscreenCtx.fillStyle = canvasData[x][y] || '#FFFFFF';
+    for (let y = 0; y < GRID_HEIGHT; y++) {
+      for (let x = 0; x < GRID_WIDTH; x++) {
+        offscreenCtx.fillStyle = canvasData[y][x] || '#FFFFFF';
         offscreenCtx.fillRect(x, y, 1, 1);
       }
     }
